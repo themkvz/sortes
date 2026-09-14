@@ -1,0 +1,9 @@
+pre-commit:
+  jobs:
+    - name: biome check (staged files, working-tree content)
+      run: bunx biome check {staged_files}
+
+pre-push:
+  jobs:
+    - name: verify
+      run: bun run verify

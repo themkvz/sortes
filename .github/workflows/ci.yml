@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.16.0
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify (check, typecheck, test)
+        run: bun run verify
+
+      - name: Build container image
+        run: docker build -t sortes-app:ci .
+
+      - name: Container smoke check
+        run: |
+          docker run -d --rm --name sortes-ci -p 44101:44100 sortes-app:ci
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:44101/ >/dev/null; then break; fi
+            sleep 0.5
+          done
+          curl -sf http://localhost:44101/ >/dev/null
+          docker stop sortes-ci
+
+      - name: Clean up container image
+        if: always()
+        run: docker rmi sortes-app:ci || true

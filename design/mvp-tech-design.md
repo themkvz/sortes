@@ -1083,8 +1083,10 @@ Question:
 
 ```text
 optional before reading starts
-trimmed
-max ~160 characters
+trimmed, then Unicode-normalized (NFC)
+max exactly 160 Unicode code points (counted after trim + NFC; supplementary-plane
+characters count as one code point each)
+non-string input or ill-formed Unicode is rejected, not silently coerced/truncated
 ```
 
 Share payload must validate:
@@ -1236,7 +1238,7 @@ Recommended MVP stack:
 TypeScript
 Remix 3
 remix/ui
-Node.js 22.19+
+Node.js 24.16.0+ (Remix 3 requires >=24.3.0)
 HTML / Web APIs
 application-owned CSS
 pen.dev
@@ -1375,7 +1377,7 @@ A completed reading can:
 - invalid card/deck data fails gracefully;
 - unfinished readings reset safely;
 - there are no uncaught runtime errors in the normal flow;
-- production build succeeds.
+- the production server starts and serves the app and its static/client assets successfully (Remix 3 serves TypeScript/JSX source directly — minified and cached in production — so there is no separate `build` step; "production build succeeds" means this startup and asset-serving path, verified in the container image).
 
 ## Interaction
 

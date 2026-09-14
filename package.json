@@ -1,0 +1,30 @@
+{
+  "name": "sortes",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.3.0"
+  },
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "dev": "NODE_ENV=development node --watch --import remix/node-tsx server.ts",
+    "start": "NODE_ENV=production node --import remix/node-tsx server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "NODE_ENV=test node --import remix/node-tsx --test 'app/**/*.test.ts'",
+    "test:watch": "NODE_ENV=test node --import remix/node-tsx --test --watch 'app/**/*.test.ts'",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "verify": "bun run check && bun run typecheck && bun run test",
+    "hooks:install": "lefthook install",
+    "doctor": "remix doctor"
+  },
+  "dependencies": {
+    "remix": "3.0.0-rc.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@types/node": "26.5.1",
+    "lefthook": "2.1.14",
+    "typescript": "7.0.2"
+  }
+}
