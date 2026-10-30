@@ -1,5 +1,5 @@
+import { test } from 'bun:test'
 import assert from 'node:assert/strict'
-import test from 'node:test'
 
 import { developerDeck } from './decks/developer.ts'
 import { idle, place, reset, reveal, start } from './reading.ts'

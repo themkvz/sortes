@@ -1,5 +1,5 @@
+import { test } from 'bun:test'
 import assert from 'node:assert/strict'
-import test from 'node:test'
 
 import { defineDeck } from './deck.ts'
 import { idle, interpret, place, reset, reveal, start } from './reading.ts'

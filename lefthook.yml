@@ -1,7 +1,11 @@
 pre-commit:
   jobs:
-    - name: biome check (staged files, working-tree content)
-      run: bunx biome check {staged_files}
+    - name: Format check (staged files)
+      glob: '*.{ts,tsx,json,yml,toml}'
+      run: bun fmt --check {staged_files} --ignore-unknown
+    - name: Lint (staged files)
+      glob: '*.{ts,tsx,json,yml}'
+      run: bun x --bun --no-install biome check {staged_files} --no-errors-on-unmatched
 
 pre-push:
   jobs:

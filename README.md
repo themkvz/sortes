@@ -12,11 +12,9 @@ Researched and verified against the published registry/CLI on 2026-10-30:
 | Tool | Version | Notes |
 | --- | --- | --- |
 | Remix | `3.1.0` | Stable release |
-| Node | `24.22.2` | Remix 3 requires `>=24.3.0` |
-| Bun | `1.4.4` | Package manager and script runner (`packageManager` field, `bun.lock`) |
-
-`bun run <script>` invokes scripts whose runtime remains explicit `node` — Bun is never
-substituted with `bun --bun` for `dev`/`start`/`test`.
+| Bun | `1.4.4` | Runtime, package manager, formatter, and test runner (`bun.lock`) |
+| Biome | `2.6.4` | Linter and import organizer; Bun 1.4.4 has no `bun lint` command |
+| TypeScript | `7.0.2` | Editor support; type checks use `bun check` |
 
 ### Differences from the generated Remix starter
 
@@ -34,7 +32,7 @@ the fuller record). Notable deviations from the illustrative file outline in thi
   doesn't use.
 - **No `hmr.ts` / `hmr` script.** The starter ships an optional HMR proxy; it isn't part of
   this project's command contract, so it was dropped as unused surface area. `dev` uses
-  `node --watch` (full-process restart on change), which is sufficient for this milestone.
+  `bun --watch` (full-process restart on change), which is sufficient for this milestone.
 - **Single primary action, not a two-button layout.** The pen.dev desktop mock
   (`MVP / Initial Reading — Desktop`) shows a static "Ask the deck" button plus a separate
   "Surprise me" quick action. `specs/application-shell/spec.md` (and `design.md`'s own
@@ -68,9 +66,10 @@ milestone (all iconography is small inline decorative SVG, hidden from assistive
 
 ## Requirements
 
-- Node `24.22.2`+ (`>=24.3.0`)
 - Bun `1.4.4`+
 - Docker (only for the container build/run steps)
+
+No separate Node.js installation is needed.
 
 ## Setup
 
@@ -87,20 +86,23 @@ Then open `http://localhost:44100/`.
 
 | Script | Behavior |
 | --- | --- |
-| `bun run dev` | Development server (`node --watch`) |
+| `bun run dev` | Development server (`bun --watch`) |
 | `bun run start` | Production server |
-| `bun run typecheck` | `tsc --noEmit` |
-| `bun run test` | Node's built-in test runner over `app/**/*.test.ts` |
+| `bun run typecheck` | `bun check --no-script` |
+| `bun run test` | Bun test runner over `app/**/*.test.ts` |
 | `bun run test:watch` | Same, in watch mode |
-| `bun run check` | `biome check .` — read-only |
-| `bun run check:fix` | `biome check --write .` — applies fixes |
+| `bun run format` | Formats application code and supported config files with `bun fmt` |
+| `bun run format:check` | Checks formatting without writing |
+| `bun run lint` | Read-only Biome lint and import organization, run under Bun |
+| `bun run check` | `format:check` + `lint` |
+| `bun run check:fix` | Formats files and applies safe Biome fixes |
 | `bun run verify` | `check` + `typecheck` + `test`, nonzero on any failure |
 | `bun run hooks:install` | Installs Lefthook git hooks |
-| `bun run doctor` | `remix doctor` — framework configuration diagnostics |
+| `bun run doctor` | Runs Remix framework diagnostics through Bun |
 
 ## Git hooks
 
-- **pre-commit**: read-only `biome check` against staged files' current working-tree
+- **pre-commit**: read-only Bun format check and `biome check` against staged files' current working-tree
   content (not a byte-for-byte staged snapshot). Blocks the commit on any violation; never
   auto-stages fixes — run `bun run check:fix` yourself and re-stage.
 - **pre-push**: full `bun run verify`.
