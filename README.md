@@ -7,13 +7,13 @@ a runnable Remix 3 application shell with a design-faithful initial-board previe
 
 ## Stack and pinned versions
 
-Researched and verified against the published registry/CLI on 2026-09-14:
+Researched and verified against the published registry/CLI on 2026-10-30:
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Remix | `3.0.0-rc.2` | `remix@next`; `remix@latest` is still Remix 2 (`2.17.5`) — not used here |
-| Node | `24.16.0` | Remix 3 requires `>=24.3.0` |
-| Bun | `1.4.2` | Package manager and script runner (`packageManager` field, `bun.lock`) |
+| Remix | `3.1.0` | Stable release |
+| Node | `24.22.2` | Remix 3 requires `>=24.3.0` |
+| Bun | `1.4.4` | Package manager and script runner (`packageManager` field, `bun.lock`) |
 
 `bun run <script>` invokes scripts whose runtime remains explicit `node` — Bun is never
 substituted with `bun --bun` for `dev`/`start`/`test`.
@@ -26,7 +26,7 @@ the fuller record). Notable deviations from the illustrative file outline in thi
 `design.md`:
 
 - **No standalone CSS file.** The verified Remix 3 starter styles components with `css()`
-  object-styles from `remix/ui`, co-located in each component file — there is no first-class
+  object-styles from `remix/component`, co-located in each component file — there is no first-class
   "load a `.css` file" convention in the generated app. A handful of shared design tokens
   (colors, fonts, radii) are still defined as real CSS custom properties, set once on
   `<body>` in `app/actions/document.tsx`, and consumed via `var(--token-name)` everywhere
@@ -68,8 +68,8 @@ milestone (all iconography is small inline decorative SVG, hidden from assistive
 
 ## Requirements
 
-- Node `24.16.0`+ (`>=24.3.0`)
-- Bun `1.4.2`+
+- Node `24.22.2`+ (`>=24.3.0`)
+- Bun `1.4.4`+
 - Docker (only for the container build/run steps)
 
 ## Setup

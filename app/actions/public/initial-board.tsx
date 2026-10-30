@@ -1,4 +1,4 @@
-import { clientEntry, css, type Handle, on } from 'remix/ui'
+import { clientEntry, css, type Handle, on } from 'remix/component'
 
 export const QuestionForm = clientEntry(import.meta.url, function QuestionForm(handle: Handle) {
   let question = ''

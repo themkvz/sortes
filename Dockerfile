@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-FROM node:24.16.0-slim AS base
+FROM node:24.22.2-slim AS base
 WORKDIR /app
-RUN npm install -g bun@1.4.2
+RUN npm install -g bun@1.4.4
 
 FROM base AS deps
 COPY package.json bun.lock ./

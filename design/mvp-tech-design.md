@@ -1237,8 +1237,8 @@ Recommended MVP stack:
 ```text
 TypeScript
 Remix 3
-remix/ui
-Node.js 24.16.0+ (Remix 3 requires >=24.3.0)
+remix/component
+Node.js 24.22.2+ (Remix 3 requires >=24.3.0)
 HTML / Web APIs
 application-owned CSS
 pen.dev
