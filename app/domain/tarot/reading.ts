@@ -1,3 +1,4 @@
+import { assert } from 'remix/assert'
 import type { Schema } from 'remix/data-schema'
 import { array, createSchema, fail, literal, object, parseSafe, string } from 'remix/data-schema'
 
@@ -95,8 +96,8 @@ function shuffle(items: readonly string[], rng: () => number): string[] {
   const result = items.slice()
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1))
-    const temp = result[i]!
-    result[i] = result[j]!
+    const temp = result[i]
+    result[i] = result[j]
     result[j] = temp
   }
   return result
@@ -124,7 +125,7 @@ export function start(
   let finalQuestion = questionResult.value
   if (finalQuestion === '') {
     const promptIndex = Math.min(deck.prompts.length - 1, Math.floor(rng() * deck.prompts.length))
-    finalQuestion = deck.prompts[promptIndex]!
+    finalQuestion = deck.prompts[promptIndex]
   }
 
   const shuffled = shuffle(
@@ -215,7 +216,7 @@ export function reveal(deck: Deck, state: ReadingState, positionId: PositionId):
   if (revealedCount === deck.positions.length) {
     const pairs = deck.positions.map((position) => ({
       positionId: position.id,
-      cardId: nextPlacements[position.id]!.cardId,
+      cardId: nextPlacements[position.id].cardId,
     }))
     const reading: CompletedReading = {
       version: 1,
@@ -296,15 +297,17 @@ export function interpret(deck: Deck, input: unknown): InterpretResult {
     cardByPosition.set(pair.positionId, pair.cardId)
   }
 
+  const pairs = deck.positions.map((position) => {
+    const cardId = cardByPosition.get(position.id)
+    assert(cardId !== undefined, `Missing card for position ${position.id}`)
+    return { positionId: position.id, cardId }
+  })
   const reading: CompletedReading = {
     version: 1,
     deckId: deck.id,
     question: questionResult.value,
     spreadId: deck.spreadId,
-    pairs: deck.positions.map((position) => ({
-      positionId: position.id,
-      cardId: cardByPosition.get(position.id)!,
-    })),
+    pairs,
   }
 
   return { success: true, value: computeInterpretation(deck, reading) }
@@ -321,10 +324,14 @@ function fnv1aHash(input: string): number {
 
 function computeInterpretation(deck: Deck, reading: CompletedReading): Interpretation {
   const cardsById = new Map<string, Card>(deck.cards.map((card) => [card.id, card]))
+  const fragmentsByPosition = new Map<string, string>()
 
   const cards: CardInterpretation[] = reading.pairs.map((pair) => {
-    const card = cardsById.get(pair.cardId)!
-    const meaning = card.meanings[pair.positionId]!
+    const card = cardsById.get(pair.cardId)
+    assert(card !== undefined, `Missing card ${pair.cardId}`)
+    const meaning = card.meanings[pair.positionId]
+    assert(meaning !== undefined, `Missing meaning for position ${pair.positionId}`)
+    fragmentsByPosition.set(pair.positionId, meaning.summaryFragment)
     return {
       positionId: pair.positionId,
       cardId: pair.cardId,
@@ -333,13 +340,6 @@ function computeInterpretation(deck: Deck, reading: CompletedReading): Interpret
       meaning: meaning.text,
     }
   })
-
-  const fragmentsByPosition = new Map(
-    reading.pairs.map((pair) => [
-      pair.positionId,
-      cardsById.get(pair.cardId)!.meanings[pair.positionId]!.summaryFragment,
-    ]),
-  )
 
   const seed = JSON.stringify([
     reading.version,
@@ -350,7 +350,7 @@ function computeInterpretation(deck: Deck, reading: CompletedReading): Interpret
   ])
 
   const templateIndex = fnv1aHash(seed) % deck.templates.length
-  const template = deck.templates[templateIndex]!
+  const template = deck.templates[templateIndex]
   const verdict = template.replace(
     /\{([^{}]*)\}/g,
     (_match, token: string) => fragmentsByPosition.get(token) ?? '',

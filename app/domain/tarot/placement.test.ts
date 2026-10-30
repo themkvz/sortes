@@ -16,11 +16,11 @@ test('cards can be placed into positions in arbitrary order', () => {
 
   const afterAdvice = place(developerDeck, state, 0, 'advice')
   assert.ok(afterAdvice.status === 'choosing')
-  assert.equal(afterAdvice.placements.advice?.cardId, state.choices[0]!.cardId)
+  assert.equal(afterAdvice.placements.advice?.cardId, state.choices[0].cardId)
 
   const afterContext = place(developerDeck, afterAdvice, 1, 'context')
   assert.ok(afterContext.status === 'choosing')
-  assert.equal(afterContext.placements.context?.cardId, state.choices[1]!.cardId)
+  assert.equal(afterContext.placements.context?.cardId, state.choices[1].cardId)
 })
 
 test('placed cards remain face-down', () => {

@@ -25,10 +25,10 @@ test('the developer deck matches the deck-content spec catalog', () => {
     }
   }
 
-  const mvp = developerDeck.cards.find((card) => card.id === 'mvp')!
-  assert.equal(mvp.meanings.advice!.text, 'Cut one requirement and finish the remaining loop.')
-  assert.equal(
-    mvp.meanings.advice!.summaryFragment,
-    'cut one requirement and finish the remaining loop',
-  )
+  const mvp = developerDeck.cards.find((card) => card.id === 'mvp')
+  assert.ok(mvp)
+  const advice = mvp.meanings.advice
+  assert.ok(advice)
+  assert.equal(advice.text, 'Cut one requirement and finish the remaining loop.')
+  assert.equal(advice.summaryFragment, 'cut one requirement and finish the remaining loop')
 })

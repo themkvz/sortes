@@ -52,7 +52,8 @@ test('changing which position a card is assigned to uses that position meaning',
   }
   const result = interpret(developerDeck, swapped)
   assert.ok(result.success)
-  const mvpCard = result.value.cards.find((c) => c.cardId === 'mvp')!
+  const mvpCard = result.value.cards.find((c) => c.cardId === 'mvp')
+  assert.ok(mvpCard)
   assert.equal(mvpCard.positionId, 'context')
   assert.equal(mvpCard.meaning, 'A small working thing has survived contact with reality.')
 })

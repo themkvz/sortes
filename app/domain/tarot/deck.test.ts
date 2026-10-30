@@ -46,7 +46,7 @@ test('a valid deck shape passes', () => {
 test('rejects duplicate card IDs', () => {
   const definition = validDefinition()
   const cards = definition.cards.slice()
-  cards[1] = { ...cards[1]!, id: cards[0]!.id }
+  cards[1] = { ...cards[1], id: cards[0].id }
   assert.throws(() => defineDeck({ ...definition, cards }), /duplicate cards/)
 })
 
@@ -69,8 +69,8 @@ test('rejects the wrong position count', () => {
 test('rejects a card missing a position meaning', () => {
   const definition = validDefinition()
   const cards = definition.cards.slice()
-  const { advice: _omit, ...remainingMeanings } = cards[0]!.meanings
-  cards[0] = { ...cards[0]!, meanings: remainingMeanings }
+  const { advice: _omit, ...remainingMeanings } = cards[0].meanings
+  cards[0] = { ...cards[0], meanings: remainingMeanings }
   assert.throws(
     () => defineDeck({ ...definition, cards }),
     /missing a meaning for position "advice"/,
