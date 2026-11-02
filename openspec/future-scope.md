@@ -19,10 +19,13 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
   and leave readings usable when images fail. See the [change](changes/archive/2026-11-02-add-card-front-artwork/proposal.md)
   and [asset review record](../design/card-fronts/README.md).
 
+- **`add-card-reveal-motion`**: Individual manual reveals have a short artwork-only flip.
+  Text, focus, and the verdict remain immediate; reduced motion shows the final front without
+  a flip. Restart cancels old effects. See the [change](changes/archive/2026-11-02-add-card-reveal-motion/proposal.md)
+  and [implementation check](../anti-slop/audit-004-2026-11-02.md).
+
 ## Suggested changes
 
-- **`add-card-reveal-motion`** — Add an individual flip on manual reveal after all cards are placed. Respect reduced
-  motion; do not make action completion depend on animation or add `Reveal all`.
 - **`add-reading-sharing`** — Share completed readings only. Show a privacy warning and require
   explicit confirmation before exposing or copying a URL. Define a versioned payload and
   read-only shared route that reproduces the deterministic result; handle malformed payloads.
@@ -34,5 +37,5 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
 
 The current milestone does not complete future sharing checks: share codec and route tests,
 plus happy-path and invalid-share browser flows. Broader browser and device verification also
-remains. See the [latest audit](../anti-slop/audit-003-2026-11-02.md) for two retained findings
+remains. See the [latest audit](../anti-slop/audit-004-2026-11-02.md) for two retained findings
 that need user-selected fixes; neither is approved for implementation.

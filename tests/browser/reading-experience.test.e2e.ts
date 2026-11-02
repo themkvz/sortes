@@ -404,6 +404,19 @@ describe('reading experience', () => {
     { timeout: 30_000 },
     async (t) => {
       const { page } = await setup(t)
+      await page.evaluate(() => {
+        const animate = Element.prototype.animate
+        Object.defineProperty(window, '__revealAnimations', { value: [] })
+        Object.defineProperty(window, '__revealedFrames', { value: [] })
+        Element.prototype.animate = function (...args) {
+          const animation = animate.apply(this, args)
+          ;(window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations.push(
+            animation,
+          )
+          animation.pause()
+          return animation
+        }
+      })
       await start(page, 'privacy sentinel question')
       const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
       for (let index = 0; index < 3; index++) {
@@ -445,12 +458,58 @@ describe('reading experience', () => {
         revealed.set(order[index].id, card)
         const front = page.locator(`[data-front-art][src$="/${card.id}.webp"]`)
         await front.waitFor({ state: 'visible' })
+        expect(
+          await page.evaluate(
+            () =>
+              (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
+                .length,
+          ),
+        ).toBe((index + 1) * 2)
         expect(await front.getAttribute('alt')).toBe('')
         await front.evaluate((image) => (image as HTMLImageElement).decode())
         expect(
           await front.evaluate((image) => (image as HTMLImageElement).naturalWidth),
         ).toBeGreaterThan(0)
         expect(await page.locator('img[data-front-art]').count()).toBe(index + 1)
+        expect(
+          await page.evaluate((src) => {
+            const current = document.querySelector(`[data-front-art][src$="/${src}"]`)
+            const frames = (window as typeof window & { __revealedFrames: Element[] })
+              .__revealedFrames
+            if (current && !frames.includes(current)) frames.push(current)
+            return frames.every((frame) => frame.isConnected && document.contains(frame))
+          }, `${card.id}.webp`),
+        ).toBe(true)
+        if (index === 2) {
+          expect(
+            await page
+              .locator('[data-verdict]')
+              .evaluate((element) => document.activeElement === element),
+          ).toBe(true)
+        } else {
+          expect(
+            await page
+              .locator('[data-reveal]:not(:disabled)')
+              .first()
+              .evaluate((element) => document.activeElement === element),
+          ).toBe(true)
+        }
+        if (index === 0) {
+          await page.emulateMedia({ reducedMotion: 'reduce' })
+          await page.waitForFunction(() =>
+            (
+              window as typeof window & { __revealAnimations: Animation[] }
+            ).__revealAnimations.every((animation) => animation.playState === 'idle'),
+          )
+          expect(
+            await page.evaluate(() =>
+              (
+                window as typeof window & { __revealAnimations: Animation[] }
+              ).__revealAnimations.every((animation) => animation.playState === 'idle'),
+            ),
+          ).toBe(true)
+          await page.emulateMedia({ reducedMotion: 'no-preference' })
+        }
         expect(after).toContain(card.shortDescription)
         expect(after).toContain(card.meanings[order[index].id].text)
         if (index < 2) {
@@ -519,12 +578,32 @@ describe('reading experience', () => {
       }
       expect(await page.getByRole('button', { name: /Reveal all|Share/i }).count()).toBe(0)
       expect(await noBrowserWrites(page)).toBe(true)
+      expect(
+        await page.evaluate(
+          () =>
+            (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
+              .length,
+        ),
+      ).toBe(6)
       await page.getByRole('button', { name: 'Ask again' }).focus()
       await page.keyboard.press('Enter')
       await page.waitForFunction(() => document.activeElement?.matches('input'))
       expect(await page.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe('')
       expect(await page.getByRole('button', { name: /^Choose hidden card \d+$/ }).count()).toBe(9)
       expect(await page.locator('[data-verdict]').count()).toBe(0)
+      await start(page, 'fresh reading after motion')
+      for (let index = 0; index < 3; index++) {
+        await page.getByRole('button', { name: `Choose hidden card ${index + 1}` }).click()
+        await page.getByRole('button', { name: `Place card in ${positions[index].label}` }).click()
+      }
+      await page.getByRole('button', { name: `Reveal ${positions[0].label} card` }).click()
+      expect(
+        await page.evaluate(
+          () =>
+            (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
+              .length,
+        ),
+      ).toBe(8)
     },
   )
 
@@ -548,6 +627,13 @@ describe('reading experience', () => {
         await page.setViewportSize({ width, height: 900 })
         await complete(page, `acceptance-question-keyboard-${width}`, 'keyboard')
         await verdictFor(page, `acceptance-question-keyboard-${width}`)
+        expect(
+          await page
+            .locator('[data-front-frame]')
+            .evaluateAll((frames) =>
+              frames.every((frame) => frame.getAnimations({ subtree: true }).length === 0),
+            ),
+        ).toBe(true)
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
           true,
         )
@@ -586,6 +672,9 @@ describe('reading experience', () => {
     { timeout: 30_000 },
     async (t) => {
       const { page } = await setup(t)
+      await page.addInitScript(() => {
+        Object.defineProperty(Element.prototype, 'animate', { value: undefined })
+      })
       const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
       await start(page, 'card back fallback')
       for (let index = 0; index < 3; index++) {

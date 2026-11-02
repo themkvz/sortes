@@ -145,6 +145,21 @@ export const frontFrameStyle = css({
   aspectRatio: '82 / 116',
   alignSelf: 'center',
   background: 'var(--color-card-back)',
+  perspective: '800px',
+})
+export const frontFaceStyle = css({
+  position: 'absolute',
+  inset: 0,
+  backfaceVisibility: 'hidden',
+  pointerEvents: 'none',
+})
+export const backFaceStyle = css({
+  position: 'absolute',
+  inset: 0,
+  backfaceVisibility: 'hidden',
+  pointerEvents: 'none',
+  background: 'var(--color-card-back) url(/cards/card-back.webp) center / contain no-repeat',
+  transform: 'rotateY(180deg)',
 })
 export const frontImageStyle = css({
   position: 'absolute',

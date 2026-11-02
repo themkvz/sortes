@@ -15,6 +15,10 @@ position meaning. Images load independently of reveals and the verdict; failed i
 the text and controls usable. The [approved artwork and prompt record](design/card-fronts/README.md)
 cover all 16 fronts, with optimized local WebP files used by the app.
 
+Each manual reveal adds a short artwork-only flip. Card text, focus, and the verdict update
+immediately, independently of motion. Reduced motion shows the front instantly; restart
+cancels any remaining effects.
+
 ## Stack and pinned versions
 
 Core tooling was verified on 2026-10-30; Playwright was added on 2026-11-02:
@@ -184,6 +188,6 @@ module).
 
 See `design/mvp-tech-design.md` and the `bootstrap-remix-foundation` change's `design.md` for
 the full milestone table. The playable reading flow, domain rules, desktop mouse dragging,
-and illustrated card fronts are implemented, with click, tap, and keyboard alternatives. Flip
-animations, detailed visual polish, and sharing remain future work. See the
+illustrated card fronts, and individual reveal flips are implemented, with click, tap, and
+keyboard alternatives. Detailed visual polish and sharing remain future work. See the
 [future scope notes](openspec/future-scope.md); each remaining item needs its own proposal.
