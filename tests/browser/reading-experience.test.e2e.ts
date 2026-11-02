@@ -428,6 +428,7 @@ describe('reading experience', () => {
           expect(initial).not.toContain(card.meanings[position.id].text)
         }
       }
+      expect(await page.locator('img[data-front-art]').count()).toBe(0)
       const order = [positions[2], positions[0], positions[1]]
       const revealed = new Map<string, (typeof developerDeck.cards)[number]>()
       for (let index = 0; index < order.length; index++) {
@@ -440,6 +441,14 @@ describe('reading experience', () => {
         expect(exposed).toHaveLength(1)
         const card = exposed[0]
         revealed.set(order[index].id, card)
+        const front = page.locator(`[data-front-art][src$="/${card.id}.webp"]`)
+        await front.waitFor({ state: 'visible' })
+        expect(await front.getAttribute('alt')).toBe('')
+        await front.evaluate((image) => (image as HTMLImageElement).decode())
+        expect(
+          await front.evaluate((image) => (image as HTMLImageElement).naturalWidth),
+        ).toBeGreaterThan(0)
+        expect(await page.locator('img[data-front-art]').count()).toBe(index + 1)
         expect(after).toContain(card.shortDescription)
         expect(after).toContain(card.meanings[order[index].id].text)
         if (index < 2) {
@@ -494,6 +503,12 @@ describe('reading experience', () => {
         .locator('[aria-label="Your spread"] article')
         .evaluateAll((articles) => articles.map((article) => article.textContent ?? ''))
       expect(faces).toHaveLength(positions.length)
+      const frontIds = await page
+        .locator('[aria-label="Your spread"] img[data-front-art]')
+        .evaluateAll((images) =>
+          images.map((image) => (image as HTMLImageElement).src.split('/').at(-1)),
+        )
+      expect(frontIds).toEqual(positions.map((position) => `${revealed.get(position.id)?.id}.webp`))
       for (const position of positions) {
         const card = revealed.get(position.id)
         if (!card) throw new Error(`No revealed card recorded for ${position.id}`)
@@ -592,6 +607,16 @@ describe('reading experience', () => {
       await page.reload()
       await waitIdle(page)
       await page.route('**/cards/card-back.webp', (route) => route.abort())
+      let finishFrontRequests!: () => void
+      const frontRequestsReleased = new Promise<void>((resolve) => {
+        finishFrontRequests = resolve
+      })
+      let pendingFrontRequests = 0
+      await page.route('**/cards/developer/fronts/*.webp', async (route) => {
+        pendingFrontRequests++
+        await frontRequestsReleased
+        await route.abort()
+      })
       await page.reload()
       await waitIdle(page)
       const fallbackColor = await page
@@ -601,6 +626,45 @@ describe('reading experience', () => {
       expect(fallbackColor).not.toBe('transparent')
       await complete(page, 'acceptance-question-fallback')
       await verdictFor(page, 'acceptance-question-fallback')
+      expect(pendingFrontRequests).toBe(3)
+      const frameBounds = await page.locator('[data-front-frame]').evaluateAll((frames) =>
+        frames.map((frame) => {
+          const bounds = frame.getBoundingClientRect()
+          return { width: bounds.width, height: bounds.height }
+        }),
+      )
+      expect(frameBounds).toHaveLength(3)
+      expect(frameBounds.every(({ width, height }) => width > 0 && height > 0)).toBe(true)
+      expect(
+        frameBounds.every(({ width, height }) => Math.abs(height / width - 116 / 82) < 0.15),
+      ).toBe(true)
+      finishFrontRequests()
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('img[data-front-art]')].every(
+          (image) => (image as HTMLImageElement).complete,
+        ),
+      )
+      expect(
+        await page
+          .locator('[aria-label="Your spread"] img[data-front-art]')
+          .evaluateAll((images) =>
+            images.every((image) => (image as HTMLImageElement).naturalWidth === 0),
+          ),
+      ).toBe(true)
+      expect(
+        await page
+          .locator('img[data-front-art]')
+          .evaluateAll((images) =>
+            images.every((image) => getComputedStyle(image).display === 'none'),
+          ),
+      ).toBe(true)
+      expect(
+        await page.locator('[aria-label="Your spread"] article strong').allTextContents(),
+      ).toHaveLength(3)
+      await page.getByRole('button', { name: 'Ask again' }).click()
+      await page.waitForFunction(() => document.activeElement?.matches('input'))
+      expect(await page.locator('[data-verdict]').count()).toBe(0)
+      expect(await page.locator('img[data-front-art]').count()).toBe(0)
     },
   )
 })

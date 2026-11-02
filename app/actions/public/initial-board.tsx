@@ -327,6 +327,8 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                   : undefined
               const cardName = card && ('cardName' in card ? card.cardName : card.name)
               const description = card && ('shortDescription' in card ? card.shortDescription : '')
+              const cardId =
+                completedCard?.cardId ?? (placement?.revealed ? placement.cardId : undefined)
               return (
                 <div
                   key={position.id}
@@ -339,6 +341,22 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                   <span mix={slotLabelStyle}>{position.label.toUpperCase()}</span>
                   {completedCard || (placement?.revealed && card) ? (
                     <article mix={revealedStyle}>
+                      <div data-front-frame mix={frontFrameStyle}>
+                        <img
+                          src={`/cards/developer/fronts/${cardId}.webp`}
+                          alt=""
+                          aria-hidden="true"
+                          data-front-art
+                          width="492"
+                          height="700"
+                          mix={[
+                            frontImageStyle,
+                            on('error', (event) => {
+                              event.currentTarget.hidden = true
+                            }),
+                          ]}
+                        />
+                      </div>
                       <strong>{cardName}</strong>
                       <span>{description}</span>
                       <p>{meaning}</p>
@@ -569,6 +587,23 @@ const revealedStyle = css({
   color: 'var(--color-text)',
   fontFamily: 'var(--font-body)',
   fontSize: '12px',
+})
+const frontFrameStyle = css({
+  position: 'relative',
+  width: '100%',
+  maxWidth: '164px',
+  aspectRatio: '82 / 116',
+  alignSelf: 'center',
+  background: 'var(--color-card-back)',
+})
+const frontImageStyle = css({
+  position: 'absolute',
+  inset: 0,
+  display: 'block',
+  width: '100%',
+  height: '100%',
+  objectFit: 'contain',
+  '&[hidden]': { display: 'none' },
 })
 const resultStyle = css({
   overflowWrap: 'anywhere',

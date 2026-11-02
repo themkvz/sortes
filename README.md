@@ -10,6 +10,11 @@ position. A valid drop is final; an invalid drop leaves the reading unchanged. E
 the drag and clears selection. Click, tap, and keyboard select-then-place controls remain
 available, and touch keeps normal scrolling.
 
+Each revealed card shows its own engraved illustration beside its name, description, and
+position meaning. Images load independently of reveals and the verdict; failed images leave
+the text and controls usable. The [approved artwork and prompt record](design/card-fronts/README.md)
+cover all 16 fronts, with optimized local WebP files used by the app.
+
 ## Stack and pinned versions
 
 Core tooling was verified on 2026-10-30; Playwright was added on 2026-11-02:
@@ -178,7 +183,7 @@ module).
 ## Roadmap
 
 See `design/mvp-tech-design.md` and the `bootstrap-remix-foundation` change's `design.md` for
-the full milestone table. The playable reading flow, domain rules, and desktop mouse dragging
-are implemented, with click, tap, and keyboard alternatives. New card-front artwork, flip
+the full milestone table. The playable reading flow, domain rules, desktop mouse dragging,
+and illustrated card fronts are implemented, with click, tap, and keyboard alternatives. Flip
 animations, detailed visual polish, and sharing remain future work. See the
 [future scope notes](openspec/future-scope.md); each remaining item needs its own proposal.

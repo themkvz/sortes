@@ -14,11 +14,13 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
   touch and pen use these non-drag controls. See the
   [change](changes/archive/2026-11-02-add-desktop-card-dragging/proposal.md).
 
+- **`add-card-front-artwork`**: All 16 developer cards have approved engraved fronts, revealed
+  individually alongside accessible text. Optimized local images preserve the shared back
+  and leave readings usable when images fail. See the [change](changes/add-card-front-artwork/proposal.md)
+  and [asset review record](../design/card-fronts/README.md).
+
 ## Suggested changes
 
-- **`add-card-front-artwork`** — Add symbolic card fronts. Card names, descriptions, and meanings
-  remain accessible text, and the shared card back stays unchanged. Confirm the specific art
-  direction and assets before implementation.
 - **`add-card-reveal-motion`** — Add an individual flip on manual reveal after all cards are placed. Respect reduced
   motion; do not make action completion depend on animation or add `Reveal all`.
 - **`add-reading-sharing`** — Share completed readings only. Show a privacy warning and require
@@ -32,5 +34,5 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
 
 The current milestone does not complete future sharing checks: share codec and route tests,
 plus happy-path and invalid-share browser flows. Broader browser and device verification also
-remains. See the [audit findings](../anti-slop/audit-002-2026-11-02.md) for two open findings
+remains. See the [latest audit](../anti-slop/audit-003-2026-11-02.md) for two retained findings
 that need user-selected fixes; neither is approved for implementation.
