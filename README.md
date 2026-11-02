@@ -1,20 +1,21 @@
 # Sortes — Pseudo Tarot
 
-A small, deterministic pseudo-tarot reading experience. This is the **foundation milestone**:
-a runnable Remix 3 application shell with a design-faithful initial-board preview. There is
-**no working reading session yet** — the primary action is visibly disabled. See
-[Roadmap](#roadmap) below.
+A small pseudo-tarot reading experience built with Remix 3. Start with a question or use
+`Surprise me`, choose and place three hidden cards, reveal them one at a time, and read the
+completed verdict. Ask again starts a fresh in-memory reading. See [Roadmap](#roadmap) for
+work that remains outside this playable milestone.
 
 ## Stack and pinned versions
 
-Researched and verified against the published registry/CLI on 2026-10-30:
+Core tooling was verified on 2026-10-30; Playwright was added on 2026-11-02:
 
-| Tool | Version | Notes |
-| --- | --- | --- |
-| Remix | `3.1.0` | Stable release |
-| Bun | `1.4.4` | Runtime, package manager, formatter, and test runner (`bun.lock`) |
-| Biome | `2.6.4` | Linter and import organizer; Bun 1.4.4 has no `bun lint` command |
-| TypeScript | `7.0.2` | Editor support; type checks use `bun check` |
+| Tool       | Version  | Notes                                                            |
+| ---------- | -------- | ---------------------------------------------------------------- |
+| Remix      | `3.1.0`  | Stable release                                                   |
+| Bun        | `1.4.4`  | Runtime and package manager (`bun.lock`)                         |
+| Playwright | `1.64.1` | Browser automation for Remix browser and E2E tests               |
+| Biome      | `2.6.4`  | Linter and import organizer; Bun 1.4.4 has no `bun lint` command |
+| TypeScript | `7.0.2`  | Editor support and `tsc` type checks                             |
 
 ### Differences from the generated Remix starter
 
@@ -23,13 +24,9 @@ minimum required files were copied in (see `design/mvp-tech-design.md` reconcili
 the fuller record). Notable deviations from the illustrative file outline in this change's
 `design.md`:
 
-- **No standalone CSS file.** The verified Remix 3 starter styles components with `css()`
-  object-styles from `remix/component`, co-located in each component file — there is no first-class
-  "load a `.css` file" convention in the generated app. A handful of shared design tokens
-  (colors, fonts, radii) are still defined as real CSS custom properties, set once on
-  `<body>` in `app/actions/document.tsx`, and consumed via `var(--token-name)` everywhere
-  else — satisfying "use CSS variables" without inventing a file convention the framework
-  doesn't use.
+- **CSS follows the project’s chosen convention.** Components use co-located `css()`
+  styles, with shared design tokens defined as CSS custom properties on `<body>` in
+  `app/actions/document.tsx`. Remix also supports standalone CSS through its asset server.
 - **No `hmr.ts` / `hmr` script.** The starter ships an optional HMR proxy; it isn't part of
   this project's command contract, so it was dropped as unused surface area. `dev` uses
   `bun --watch` (full-process restart on change), which is sufficient for this milestone.
@@ -61,8 +58,9 @@ Design tokens (colors, fonts, spacing, radii, motion durations) were read from t
 variables and translated into CSS custom properties / literal values in
 `app/actions/document.tsx` and the component styles — see that file for the full token list.
 
-No required visual assets were missing; no placeholder/generated artwork was needed for this
-milestone (all iconography is small inline decorative SVG, hidden from assistive technology).
+The shared face-down card uses a 38 KB WebP asset at `public/cards/card-back.webp`; its PNG
+source is retained at `public/cards/card-back.png`. Decorative card backs and the brand mark
+are hidden from assistive technology.
 
 ## Requirements
 
@@ -84,21 +82,23 @@ Then open `http://localhost:44100/`.
 
 ## Commands
 
-| Script | Behavior |
-| --- | --- |
-| `bun run dev` | Development server (`bun --watch`) |
-| `bun run start` | Production server |
-| `bun run typecheck` | `bun check --no-script` |
-| `bun run test` | Bun test runner over `app/**/*.test.ts` |
-| `bun run test:watch` | Same, in watch mode |
-| `bun run format` | Formats application code and supported config files with `bun fmt` |
-| `bun run format:check` | Checks formatting without writing |
-| `bun run lint` | Read-only Biome lint and import organization, run under Bun |
-| `bun run check` | `format:check` + `lint` |
-| `bun run check:fix` | Formats files and applies safe Biome fixes |
-| `bun run verify` | `check` + `typecheck` + `test`, nonzero on any failure |
-| `bun run hooks:install` | Installs Lefthook git hooks |
-| `bun run doctor` | Runs Remix framework diagnostics through Bun |
+| Script                  | Behavior                                                           |
+| ----------------------- | ------------------------------------------------------------------ |
+| `bun run dev`           | Development server (`bun --watch`)                                 |
+| `bun run start`         | Production server                                                  |
+| `bun run typecheck`     | TypeScript compiler (`tsc --noEmit`)                               |
+| `bun run test`          | Remix test runner                                                  |
+| `bun run test:server`   | Remix server tests                                                 |
+| `bun run test:browser`  | Remix browser and E2E tests using Playwright                       |
+| `bun run test:watch`    | Remix test runner in watch mode                                    |
+| `bun run format`        | Formats application code and supported config files with `bun fmt` |
+| `bun run format:check`  | Checks formatting without writing                                  |
+| `bun run lint`          | Read-only Biome lint and import organization, run under Bun        |
+| `bun run check`         | `format:check` + `lint`                                            |
+| `bun run check:fix`     | Formats files and applies safe Biome fixes                         |
+| `bun run verify`        | `check` + `typecheck` + Remix tests                                |
+| `bun run hooks:install` | Installs Lefthook git hooks                                        |
+| `bun run doctor`        | Runs Remix framework diagnostics through Bun                       |
 
 ## Git hooks
 
@@ -114,24 +114,28 @@ defaults — no `.env` file is required for local startup. Invalid values (out-o
 unsupported mode) fail fast at startup with an actionable message; see `app/env.ts` /
 `app/env.test.ts`.
 
-## TDD workflow used here
+## Testing
 
-For each crucial behavior: write the smallest failing test beside the module it tests
-(`*.test.ts`), watch it fail, implement the minimum, then refactor while green. This
-foundation's tests cover:
+Test app-owned rules, failure paths, and real regressions at the smallest useful boundary.
+Keep domain and router checks beside their modules, use component tests for UI state, and
+reserve E2E tests for browser/server integration. Avoid duplicate checks and coverage targets;
+TDD is optional. The foundation's tests cover:
 
-- `GET /` returns the initial board with all required elements (`app/actions/controller.test.ts`)
 - Unknown routes return a real 404 page with a link home
-- An unexpected action failure returns a generic 500 with no stack trace (via a narrowly
-  scoped test-only route, exercised through the router's `Request`/`Response` boundary —
-  no HTTP server is started for these tests)
+- The Bun server adapter returns a generic 500 without exposing an unexpected route
+  error's stack trace; a child process also verifies active responses drain on SIGTERM
 - Environment validation accepts defaults and valid overrides, rejects invalid ones
   (`app/env.test.ts`)
 
-The question-editing interaction (label toggling, disabled state, no network submission, no
-persistence across reload) was verified manually in a real browser (desktop, 390px, and
-320px viewports; keyboard focus) rather than with an automated browser test — `@playwright/test`
-is intentionally not a dependency yet; it's added when the first real reading flow exists.
+The reading flow has repeatable Remix browser and E2E tests using Playwright. E2E tests use
+Remix's test server adapter and isolated browser pages. Install Chromium once, then run:
+
+```sh
+bun x --bun --no-install playwright install chromium
+bun run test:browser
+```
+
+CI installs Chromium and its system dependencies before running `bun run verify`.
 
 ## Container
 
@@ -152,30 +156,24 @@ storage, or network imports — covering:
 - `deck.ts` / `decks/developer.ts`: content schema, structural/cross-field validation, and the
   authored 16-card Developer Tarot deck (context/problem/advice positions, 5 surprise prompts,
   2 verdict templates).
-- `reading.ts`: question normalization (trim + NFC, exactly 160 Unicode code points), the
+- `reading.ts`: question normalization (trim + NFC, at most 160 Unicode code points), the
   session lifecycle (`idle → choosing → ready → revealing → complete`, plus `reset`), immutable
   card placement, individual reveal gating, and deterministic interpretation (a completed
   reading always produces the same position meanings and verdict, independent of pick/reveal
   order — verified against a pinned golden vector).
 
-This engine is **not wired into the browser yet**. The board rendered at `/` is still the
-foundation's static, disabled preview described below; nothing in this module is reachable
-from a route or a click. Run its tests with `bun run test` (colocated `*.test.ts` files
-alongside each module).
-
-## Preview limitations (current milestone)
-
-- The rendered board's primary action (`Ask` / `Surprise me`) is **visibly disabled**; no
-  reading, verdict, or share link is reachable from the browser yet.
-- The deck and spread positions rendered at `/` are static/inert — no card selection,
-  placement, or reveal is wired to the UI (the reading engine that will power this exists and
-  is tested, but is not yet connected).
-- No persistence, authentication, cookies, or browser storage is used or required.
+The engine powers the browser flow through `Ask` / `Surprise me`, nine generic hidden choices,
+three configured spread positions, individual reveals, a completed verdict, and `Ask again`.
+Questions and reading state stay in memory for the current page session; reloading starts
+again at idle. No authentication, cookies, browser storage, or server-side reading endpoint is
+used. Run the engine tests with `bun run test` (colocated `*.test.ts` files alongside each
+module).
 
 ## Roadmap
 
 See `design/mvp-tech-design.md` and the `bootstrap-remix-foundation` change's `design.md` for
-the full milestone table. Milestone 1 (deck content and reading rules) is implemented and
-tested by the domain layer above. Next up — **UI integration**: wiring the real Ask/Surprise
-me flow, card selection and placement, and individual reveals into the browser — is a
-separate, future OpenSpec change; it is not part of this change's scope.
+the full milestone table. The playable reading flow and domain rules are implemented. Desktop
+dragging, new card-front artwork, flip animations, detailed visual polish, and sharing remain
+future work; this milestone supports click, tap, and keyboard interaction. The current
+`17/17` task count applies only to `wire-reading-experience`; future work is recorded separately
+in [future scope notes](openspec/future-scope.md); those notes are not completed specs.

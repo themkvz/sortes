@@ -1,5 +1,5 @@
-import { test } from 'bun:test'
-import assert from 'node:assert/strict'
+import { expect } from 'remix/assert'
+import { test } from 'remix/test'
 
 import { developerDeck } from './decks/developer.ts'
 import { idle, start } from './reading.ts'
@@ -15,74 +15,73 @@ function countingRng(rng: () => number) {
 
 test('starting idle with a manual question stores it and prepares nine hidden choices', () => {
   const result = start(developerDeck, idle(developerDeck), 'Should I merge this PR?', () => 0.5)
-  assert.equal(result.success, true)
-  assert.ok(result.success)
+  if (!result.success) throw new Error('Expected successful start')
   const state = result.value
-  assert.equal(state.status, 'choosing')
-  assert.ok(state.status === 'choosing')
-  assert.equal(state.question, 'Should I merge this PR?')
-  assert.equal(state.choices.length, 9)
-  assert.equal(new Set(state.choices.map((c) => c.cardId)).size, 9)
-  assert.ok(state.choices.every((c) => c.picked === false))
+  expect(state.status).toBe('choosing')
+  if (state.status !== 'choosing') throw new Error('Expected choosing status')
+  expect(state.question).toBe('Should I merge this PR?')
+  expect(state.choices.length).toBe(9)
+  expect(new Set(state.choices.map((c) => c.cardId)).size).toBe(9)
+  expect(state.choices.every((c) => c.picked === false)).toBeTruthy()
 })
 
 test('starting idle with empty/whitespace input chooses a configured prompt and prepares choices', () => {
   const result = start(developerDeck, idle(developerDeck), '   ', () => 0)
-  assert.equal(result.success, true)
-  assert.ok(result.success)
+  if (!result.success) throw new Error('Expected successful start')
   const state = result.value
-  assert.ok(state.status === 'choosing')
-  assert.ok(developerDeck.prompts.includes(state.question))
-  assert.equal(state.choices.length, 9)
+  if (state.status !== 'choosing') throw new Error('Expected choosing status')
+  expect(developerDeck.prompts.includes(state.question)).toBeTruthy()
+  expect(state.choices.length).toBe(9)
 })
 
 test('the nine hidden choices are real, distinct card IDs from the deck', () => {
   const result = start(developerDeck, idle(developerDeck), 'A question', () => 0.9)
-  assert.ok(result.success)
+  if (!result.success) throw new Error('Expected successful start')
   const state = result.value
-  assert.ok(state.status === 'choosing')
+  if (state.status !== 'choosing') throw new Error('Expected choosing status')
   const deckCardIds = new Set(developerDeck.cards.map((card) => card.id))
   for (const choice of state.choices) {
-    assert.ok(deckCardIds.has(choice.cardId))
+    expect(deckCardIds.has(choice.cardId)).toBeTruthy()
   }
 })
 
 test('setup does not mutate the authored deck', () => {
   const cardsBefore = JSON.stringify(developerDeck.cards)
   start(developerDeck, idle(developerDeck), 'A question', () => 0.3)
-  assert.equal(JSON.stringify(developerDeck.cards), cardsBefore)
+  expect(JSON.stringify(developerDeck.cards)).toBe(cardsBefore)
 })
 
-test('two sessions started independently do not share choice identity', () => {
+test('independent sessions have different choices with a shared counting RNG', () => {
   let counter = 0
   const rng = () => {
     counter += 1
     // deterministic but different sequences per session by using a shared mutable counter
     return (counter % 97) / 97
   }
-  const sessionA = start(developerDeck, idle(developerDeck), 'Question A', rng)
-  const sessionB = start(developerDeck, idle(developerDeck), 'Question B', rng)
-  assert.ok(sessionA.success && sessionB.success)
-  assert.ok(sessionA.success)
-  assert.ok(sessionB.success)
-  assert.notDeepEqual(sessionA.value, sessionB.value)
+  const sessionA = start(developerDeck, idle(developerDeck), 'Same question', rng)
+  const sessionB = start(developerDeck, idle(developerDeck), 'Same question', rng)
+  if (!sessionA.success || !sessionB.success) throw new Error('Expected successful starts')
+  if (sessionA.value.status !== 'choosing' || sessionB.value.status !== 'choosing') {
+    throw new Error('Expected choosing status')
+  }
+  expect(sessionA.value.choices).not.toEqual(sessionB.value.choices)
 })
 
 test('an invalid question consumes zero random draws and leaves idle', () => {
   const { wrapped, count } = countingRng(() => 0.5)
   const tooLong = 'a'.repeat(161)
   const result = start(developerDeck, idle(developerDeck), tooLong, wrapped)
-  assert.deepEqual(result, { success: false, error: 'invalid-question' })
-  assert.equal(count(), 0)
+  expect(result).toEqual({ success: false, error: 'invalid-question' })
+  expect(count()).toBe(0)
 })
 
 test('a repeated start outside idle consumes zero random draws and is a no-op', () => {
   const started = start(developerDeck, idle(developerDeck), 'First question', () => 0.5)
-  assert.ok(started.success)
+  if (!started.success) throw new Error('Expected successful start')
   const choosingState = started.value
 
   const { wrapped, count } = countingRng(() => 0.5)
   const second = start(developerDeck, choosingState, 'Second question', wrapped)
-  assert.deepEqual(second, { success: true, value: choosingState })
-  assert.equal(count(), 0)
+  expect(second).toEqual({ success: true, value: choosingState })
+  expect(count()).toBe(0)
 })

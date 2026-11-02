@@ -1,5 +1,6 @@
-import { test } from 'bun:test'
-import assert from 'node:assert/strict'
+import * as assert from 'remix/assert'
+import { expect } from 'remix/assert'
+import { test } from 'remix/test'
 
 import { developerDeck } from './decks/developer.ts'
 import { interpret } from './reading.ts'
@@ -21,9 +22,9 @@ const EXPECTED_VERDICT =
 
 test('the golden vector selects template index 1 and produces the exact expected verdict', () => {
   const result = interpret(developerDeck, GOLDEN_RECORD)
-  assert.ok(result.success)
-  assert.equal(result.value.verdict, EXPECTED_VERDICT)
-  assert.ok(result.value.verdict.startsWith('The cards remember that'))
+  if (!result.success) throw new Error('Expected successful interpretation')
+  expect(result.value.verdict).toBe(EXPECTED_VERDICT)
+  expect(result.value.verdict.startsWith('The cards remember that')).toBeTruthy()
 })
 
 test('permuting pair order in the input does not change the result', () => {
@@ -37,8 +38,9 @@ test('permuting pair order in the input does not change the result', () => {
   }
   const original = interpret(developerDeck, GOLDEN_RECORD)
   const reordered = interpret(developerDeck, permuted)
-  assert.ok(original.success && reordered.success)
-  assert.deepEqual(original.value, reordered.value)
+  if (!original.success || !reordered.success)
+    throw new Error('Expected successful interpretations')
+  expect(original.value).toEqual(reordered.value)
 })
 
 test('changing which position a card is assigned to uses that position meaning', () => {
@@ -51,11 +53,11 @@ test('changing which position a card is assigned to uses that position meaning',
     ],
   }
   const result = interpret(developerDeck, swapped)
-  assert.ok(result.success)
+  if (!result.success) throw new Error('Expected successful interpretation')
   const mvpCard = result.value.cards.find((c) => c.cardId === 'mvp')
-  assert.ok(mvpCard)
-  assert.equal(mvpCard.positionId, 'context')
-  assert.equal(mvpCard.meaning, 'A small working thing has survived contact with reality.')
+  if (!mvpCard) throw new Error('Expected matching card')
+  expect(mvpCard.positionId).toBe('context')
+  expect(mvpCard.meaning).toBe('A small working thing has survived contact with reality.')
 })
 
 test('both templates compose without leftover placeholders or doubled punctuation', () => {
@@ -65,14 +67,14 @@ test('both templates compose without leftover placeholders or doubled punctuatio
     for (let i = 0; i < 200 && !found; i++) {
       const candidate = { ...GOLDEN_RECORD, question: `${GOLDEN_RECORD.question} ${i}` }
       const result = interpret(developerDeck, candidate)
-      assert.ok(result.success)
+      if (!result.success) throw new Error('Expected successful interpretation')
       const usesTemplate =
         templateIndex === 1
           ? result.value.verdict.startsWith('The cards remember that')
           : result.value.verdict.startsWith('The setup:')
       if (usesTemplate) {
-        assert.doesNotMatch(result.value.verdict, /\{[^}]*\}/)
-        assert.doesNotMatch(result.value.verdict, /\.\./)
+        expect(result.value.verdict).not.toMatch(/\{[^}]*\}/)
+        expect(result.value.verdict).not.toMatch(/\.\./)
         found = true
       }
     }
@@ -83,8 +85,8 @@ test('both templates compose without leftover placeholders or doubled punctuatio
 test('two different questions can select different templates, demonstrating question-based variation', () => {
   const first = interpret(developerDeck, { ...GOLDEN_RECORD, question: 'Should I rewrite it?' })
   const second = interpret(developerDeck, { ...GOLDEN_RECORD, question: 'Should I deploy today?' })
-  assert.ok(first.success && second.success)
-  assert.notEqual(first.value.verdict, second.value.verdict)
+  if (!first.success || !second.success) throw new Error('Expected successful interpretations')
+  expect(first.value.verdict).not.toBe(second.value.verdict)
 })
 
 test('interpretation does not consume randomness and is deterministic across repeats', () => {
@@ -95,8 +97,8 @@ test('interpretation does not consume randomness and is deterministic across rep
   try {
     const first = interpret(developerDeck, GOLDEN_RECORD)
     const second = interpret(developerDeck, GOLDEN_RECORD)
-    assert.ok(first.success && second.success)
-    assert.deepEqual(first.value, second.value)
+    if (!first.success || !second.success) throw new Error('Expected successful interpretations')
+    expect(first.value).toEqual(second.value)
   } finally {
     Math.random = originalRandom
   }

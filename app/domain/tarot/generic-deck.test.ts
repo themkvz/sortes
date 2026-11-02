@@ -1,5 +1,5 @@
-import { test } from 'bun:test'
-import assert from 'node:assert/strict'
+import { expect } from 'remix/assert'
+import { test } from 'remix/test'
 
 import { defineDeck } from './deck.ts'
 import { idle, interpret, place, reset, reveal, start } from './reading.ts'
@@ -38,38 +38,38 @@ const renamedDeck = defineDeck({
 
 test('a full start/place/reveal/interpret/reset sequence works generically on a renamed deck', () => {
   let state = idle(renamedDeck)
-  assert.equal(state.status, 'idle')
+  expect(state.status).toBe('idle')
 
   const started = start(renamedDeck, state, 'Will it glow?', () => 0.55)
-  assert.ok(started.success)
+  if (!started.success) throw new Error('Expected successful start')
   state = started.value
-  assert.ok(state.status === 'choosing')
-  assert.equal(state.choices.length, 9)
+  if (state.status !== 'choosing') throw new Error('Expected choosing state')
+  expect(state.choices.length).toBe(9)
 
   state = place(renamedDeck, state, 0, 'tomorrow')
   state = place(renamedDeck, state, 1, 'yesterday')
   state = place(renamedDeck, state, 2, 'today')
-  assert.equal(state.status, 'ready')
+  if (state.status !== 'ready') throw new Error('Expected ready state')
 
   state = reveal(renamedDeck, state, 'yesterday')
-  assert.equal(state.status, 'revealing')
+  if (state.status !== 'revealing') throw new Error('Expected revealing state')
   state = reveal(renamedDeck, state, 'today')
   state = reveal(renamedDeck, state, 'tomorrow')
-  assert.equal(state.status, 'complete')
-  assert.ok(state.status === 'complete')
+  if (state.status !== 'complete') throw new Error('Expected complete state')
 
-  assert.equal(state.reading.deckId, 'astro-deck')
-  assert.equal(state.reading.spreadId, 'past-present-future')
-  assert.deepEqual(
-    state.reading.pairs.map((pair) => pair.positionId),
-    ['yesterday', 'today', 'tomorrow'],
-  )
-  assert.doesNotMatch(state.interpretation.verdict, /\{[^}]*\}/)
+  expect(state.reading.deckId).toBe('astro-deck')
+  expect(state.reading.spreadId).toBe('past-present-future')
+  expect(state.reading.pairs.map((pair) => pair.positionId)).toEqual([
+    'yesterday',
+    'today',
+    'tomorrow',
+  ])
+  expect(state.interpretation.verdict).not.toMatch(/\{[^}]*\}/)
 
   const standalone = interpret(renamedDeck, state.reading)
-  assert.ok(standalone.success)
-  assert.deepEqual(standalone.value, state.interpretation)
+  if (!standalone.success) throw new Error('Expected successful interpretation')
+  expect(standalone.value).toEqual(state.interpretation)
 
   const afterReset = reset(state)
-  assert.deepEqual(afterReset, { status: 'idle', deckId: 'astro-deck', question: '' })
+  expect(afterReset).toEqual({ status: 'idle', deckId: 'astro-deck', question: '' })
 })

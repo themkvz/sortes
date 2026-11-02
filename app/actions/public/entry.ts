@@ -5,7 +5,7 @@ import {
   preloadShim,
 } from 'remix/multiple-import-maps-polyfill'
 
-run({
+const app = run({
   async loadModule(moduleUrl, exportName) {
     const mod = await importModule(moduleUrl)
     const Component = mod[exportName]
@@ -21,3 +21,9 @@ run({
     return []
   },
 })
+
+app.addEventListener('error', (event) => {
+  console.error('Component error:', event.error)
+})
+
+await app.ready()

@@ -8,28 +8,20 @@ Provide an accessible, responsive entry screen for the pseudo-tarot experience, 
 
 ### Requirement: Direct server-rendered entry
 
-The application SHALL respond to `GET /` with status 200 and an HTML document containing product branding, a labeled optional question input, a primary action, three empty spread positions, and an inactive hidden-card area. Essential initial content SHALL be present before browser JavaScript runs. The entry screen SHALL open directly onto the board without a marketing page or onboarding.
+The application SHALL respond to `GET /` with status 200 and an HTML document containing product branding, a labeled optional question input, a primary action, three empty spread positions, and an inactive hidden-card area. Essential initial content SHALL be present before browser JavaScript runs. The entry screen SHALL open directly onto the board without a marketing page or onboarding. Until browser interaction is initialized, controls that would change reading state SHALL remain inactive and the page SHALL communicate that initialization is in progress. If browser JavaScript is unavailable, the page SHALL explain that the reading experience requires JavaScript and SHALL NOT fabricate a reading.
 
 #### Scenario: First visit
 
 - **WHEN** a visitor requests `/` with browser JavaScript disabled
 - **THEN** the response is successful HTML and the initial board structure and labels are visible
 - **AND** the page has a descriptive document title, language, and mobile viewport configuration
+- **AND** the page explains that the reading experience requires JavaScript without presenting a fabricated reading
 
-### Requirement: Explicit foundation preview
+#### Scenario: Initialize the interactive board
 
-The foundation screen SHALL allow editing the question and display `Surprise me` for empty or whitespace-only input and `Ask` for nonempty trimmed input. The primary action SHALL remain visibly disabled with adjacent explanatory text that reading interaction is not yet available in this preview. No reading, verdict, or share link SHALL be fabricated.
-
-#### Scenario: Question edit
-
-- **WHEN** a visitor enters non-whitespace question text
-- **THEN** the primary action label changes to `Ask` while remaining disabled
-- **AND** clearing the question restores `Surprise me`
-
-#### Scenario: Preview has no reading action
-
-- **WHEN** a visitor clicks the disabled primary action or presses Enter in the question input
-- **THEN** no reading starts, no navigation occurs, and question text is not submitted over the network
+- **WHEN** a visitor opens `/` with browser JavaScript available but the interaction is not yet initialized
+- **THEN** server-rendered branding, the input, three empty spread positions, and inactive card area are visible
+- **AND** state-changing controls remain inactive with an honest initialization status until the experience is usable
 
 ### Requirement: Existing design is the visual source
 
@@ -57,7 +49,7 @@ The entry screen SHALL use semantic input and button elements, a programmatic in
 
 ### Requirement: Controlled route failures and private input
 
-The application SHALL return status 404 with a readable application-owned message for unknown routes and status 500 with a generic message for unexpected request failures. Production responses SHALL not expose stack traces. The foundation SHALL not persist, log, or transmit the edited question, and SHALL not require authentication, cookies, browser storage, or external services to display the board.
+The application SHALL return status 404 with a readable application-owned message for unknown routes and status 500 with a generic message for unexpected request failures. Production responses SHALL not expose stack traces. The experience SHALL keep edited questions and all incomplete or completed reading state only in browser memory; it SHALL not persist, log, or transmit the question or reading state, and SHALL not require authentication, cookies, browser storage, or external services for the reading loop. Reloading `/` at any point SHALL return to the initial empty state without restoring a reading.
 
 #### Scenario: Unknown route
 
@@ -71,5 +63,6 @@ The application SHALL return status 404 with a readable application-owned messag
 
 #### Scenario: Ephemeral question
 
-- **WHEN** a visitor edits the question and reloads `/`
-- **THEN** the input returns to its initial empty state and no saved reading is restored
+- **WHEN** a visitor edits a question, starts a reading, or completes a reading and then reloads `/`
+- **THEN** the input returns to its initial empty state and no saved or completed reading is restored
+- **AND** the question and reading state have not been persisted, logged, or transmitted

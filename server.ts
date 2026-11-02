@@ -1,3 +1,4 @@
+import { assets } from './app/assets.ts'
 import { loadServerEnv } from './app/env.ts'
 import { router } from './app/router.tsx'
 
@@ -34,7 +35,8 @@ async function shutdown() {
   }
 
   shuttingDown = true
-  await server.stop(true)
+  await server.stop()
+  await assets.close()
   process.exit(0)
 }
 

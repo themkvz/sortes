@@ -1,28 +1,28 @@
-import { test } from 'bun:test'
-import assert from 'node:assert/strict'
+import { expect } from 'remix/assert'
+import { test } from 'remix/test'
 
 import { loadServerEnv } from './env.ts'
 
 test('defaults succeed without any env vars set', () => {
   const env = loadServerEnv({})
-  assert.equal(env.mode, 'development')
-  assert.equal(env.port, 44100)
-  assert.equal(env.host, '0.0.0.0')
+  expect(env.mode).toBe('development')
+  expect(env.port).toBe(44100)
+  expect(env.host).toBe('0.0.0.0')
 })
 
 test('rejects an out-of-range port with an actionable message', () => {
-  assert.throws(() => loadServerEnv({ PORT: '999999' }), /PORT/)
+  expect(() => loadServerEnv({ PORT: '999999' })).toThrow(/PORT/)
 })
 
 test('rejects a non-numeric port', () => {
-  assert.throws(() => loadServerEnv({ PORT: 'abc' }), /PORT/)
+  expect(() => loadServerEnv({ PORT: 'abc' })).toThrow(/PORT/)
 })
 
 test('rejects an unsupported NODE_ENV value', () => {
-  assert.throws(() => loadServerEnv({ NODE_ENV: 'staging' }), /NODE_ENV/)
+  expect(() => loadServerEnv({ NODE_ENV: 'staging' })).toThrow(/NODE_ENV/)
 })
 
 test('accepts a valid explicit production configuration', () => {
   const env = loadServerEnv({ NODE_ENV: 'production', PORT: '8080', HOST: '127.0.0.1' })
-  assert.deepEqual(env, { host: '127.0.0.1', port: 8080, mode: 'production' })
+  expect(env).toEqual({ host: '127.0.0.1', port: 8080, mode: 'production' })
 })
