@@ -1,16 +1,21 @@
 # Future scope
 
-Planning notes only; not implemented or approved for implementation. Each item needs a separate
-OpenSpec proposal before build.
+The suggested changes below are planning notes only; they are not implemented or approved for
+implementation. Each needs a separate OpenSpec proposal before build.
 
 Product sources: [MVP tech design](../design/mvp-tech-design.md) and
 [UI/UX design](../design/ui-ux-design.md).
 
+## Implemented milestones
+
+- **`add-desktop-card-dragging`**: Desktop mouse dragging uses the existing placement command.
+  Valid drops make the final placement; invalid drops and cancellation leave the reading
+  unchanged. Escape also clears selection. Click, tap, and keyboard placement remain available;
+  touch and pen use these non-drag controls. See the
+  [change](changes/archive/2026-11-02-add-desktop-card-dragging/proposal.md).
+
 ## Suggested changes
 
-- **`add-desktop-card-dragging`** — Add desktop dragging with Pointer Events, using the existing
-  placement command. Successful drops make the final placement; cancelled or invalid drops are
-  harmless. Keep click, tap, and keyboard placement available.
 - **`add-card-front-artwork`** — Add symbolic card fronts. Card names, descriptions, and meanings
   remain accessible text, and the shared card back stays unchanged. Confirm the specific art
   direction and assets before implementation.
@@ -27,5 +32,5 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
 
 The current milestone does not complete future sharing checks: share codec and route tests,
 plus happy-path and invalid-share browser flows. Broader browser and device verification also
-remains. See the [audit findings](../anti-slop/audit-001-2026-11-02.md) for two open findings
+remains. See the [audit findings](../anti-slop/audit-002-2026-11-02.md) for two open findings
 that need user-selected fixes; neither is approved for implementation.

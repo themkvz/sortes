@@ -11,6 +11,127 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
   let ready = false
   let status = 'Preparing the deck…'
   let boardRoot: HTMLElement | undefined
+  let gesture: {
+    pointerId: number
+    choiceIndex: number
+    source: HTMLButtonElement
+    startX: number
+    startY: number
+    active: boolean
+    target: string | null
+    x: number
+    y: number
+    controller: AbortController
+  } | null = null
+  let suppressDragClick = false
+  const DRAG_THRESHOLD_CSS_PX = 6
+  const DRAG_PREVIEW_WIDTH_CSS_PX = 56
+
+  const clampPreviewPoint = (x: number, y: number) => {
+    const width = Math.min(
+      DRAG_PREVIEW_WIDTH_CSS_PX,
+      Math.max(0, window.innerWidth - 2),
+      (Math.max(0, window.innerHeight - 2) * 82) / 116,
+    )
+    const halfWidth = width / 2
+    const halfHeight = (width * 116) / 164
+    return {
+      x: Math.min(Math.max(halfWidth, x), Math.max(halfWidth, window.innerWidth - halfWidth)),
+      y: Math.min(Math.max(halfHeight, y), Math.max(halfHeight, window.innerHeight - halfHeight)),
+    }
+  }
+
+  const dragTargetAt = (x: number, y: number) => {
+    const currentState = state
+    if (currentState.status !== 'choosing') return null
+    const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-position]')
+    if (!hit || !boardRoot?.contains(hit)) return null
+    const positionId = hit.dataset.position
+    return positionId && !currentState.placements[positionId] ? positionId : null
+  }
+
+  const stopGesture = (restoreFocus: boolean, clearPending: boolean) => {
+    const current = gesture
+    if (!current) return
+    gesture = null
+    current.controller.abort()
+    if (current.source.hasPointerCapture(current.pointerId)) {
+      current.source.releasePointerCapture(current.pointerId)
+    }
+    if (clearPending) {
+      pending = null
+      status = 'Selection cleared.'
+    }
+    handle.update()
+    if (restoreFocus && boardRoot?.contains(current.source)) current.source.focus()
+  }
+
+  const beginGesture = (event: PointerEvent, choiceIndex: number) => {
+    if (
+      event.pointerType !== 'mouse' ||
+      !event.isPrimary ||
+      event.button !== 0 ||
+      state.status !== 'choosing' ||
+      state.choices[choiceIndex]?.picked ||
+      gesture
+    )
+      return
+    suppressDragClick = false
+    const source = event.currentTarget as HTMLButtonElement
+    const controller = new AbortController()
+    const current = {
+      pointerId: event.pointerId,
+      choiceIndex,
+      source,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+      target: null as string | null,
+      x: event.clientX,
+      y: event.clientY,
+      controller,
+    }
+    gesture = current
+    source.setPointerCapture(event.pointerId)
+    const move = (pointerEvent: PointerEvent) => {
+      if (gesture !== current || pointerEvent.pointerId !== current.pointerId) return
+      if (!current.active) {
+        if (
+          Math.hypot(pointerEvent.clientX - current.startX, pointerEvent.clientY - current.startY) <
+          DRAG_THRESHOLD_CSS_PX
+        )
+          return
+        current.active = true
+        suppressDragClick = true
+      }
+      const point = clampPreviewPoint(pointerEvent.clientX, pointerEvent.clientY)
+      current.x = point.x
+      current.y = point.y
+      current.target = dragTargetAt(pointerEvent.clientX, pointerEvent.clientY)
+      handle.update()
+    }
+    const finish = (pointerEvent: PointerEvent) => {
+      if (gesture !== current || pointerEvent.pointerId !== current.pointerId) return
+      if (current.active && pointerEvent.type === 'pointerup') {
+        current.target = dragTargetAt(pointerEvent.clientX, pointerEvent.clientY)
+        const currentState = state
+        const choiceValid =
+          currentState.status === 'choosing' && !currentState.choices[current.choiceIndex]?.picked
+        const positionId = current.target
+        const valid =
+          positionId &&
+          choiceValid &&
+          currentState.status === 'choosing' &&
+          !currentState.placements[positionId]
+        stopGesture(true, false)
+        if (valid) put(positionId, current.choiceIndex)
+      } else stopGesture(true, false)
+    }
+    window.addEventListener('pointermove', move, { signal: controller.signal })
+    window.addEventListener('pointerup', finish, { signal: controller.signal })
+    window.addEventListener('pointercancel', finish, { signal: controller.signal })
+    window.addEventListener('blur', () => stopGesture(false, false), { signal: controller.signal })
+  }
 
   handle.queueTask(() => {
     ready = true
@@ -45,9 +166,8 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
     handle.update()
   }
 
-  const put = (positionId: string) => {
-    if (pending === null) return
-    const choiceIndex = pending
+  const put = (positionId: string, choiceIndex = pending) => {
+    if (choiceIndex === null || choiceIndex === undefined) return
     const previous = state
     state = place(developerDeck, state, choiceIndex, positionId)
     if (state === previous) return
@@ -103,8 +223,33 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
       <section
         mix={[
           boardStyle,
-          ref((node) => (boardRoot = node)),
+          ref((node, signal) => {
+            boardRoot = node
+            window.addEventListener(
+              'pointerdown',
+              () => {
+                if (!gesture) suppressDragClick = false
+              },
+              { capture: true, signal },
+            )
+            window.addEventListener(
+              'click',
+              (event) => {
+                if (!suppressDragClick || event.detail === 0) return
+                event.preventDefault()
+                event.stopImmediatePropagation()
+                suppressDragClick = false
+              },
+              { capture: true, signal },
+            )
+            signal.addEventListener('abort', () => stopGesture(false, false))
+          }),
           on('keydown', (event) => {
+            if (event.key === 'Escape' && gesture) {
+              suppressDragClick = true
+              stopGesture(true, true)
+              return
+            }
             if (event.key === 'Escape' && pending !== null) {
               pending = null
               status = 'Selection cleared.'
@@ -183,7 +328,14 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
               const cardName = card && ('cardName' in card ? card.cardName : card.name)
               const description = card && ('shortDescription' in card ? card.shortDescription : '')
               return (
-                <div key={position.id} mix={slotWrapStyle}>
+                <div
+                  key={position.id}
+                  data-position={position.id}
+                  data-drop-target={
+                    (gesture?.active && gesture.target === position.id) || undefined
+                  }
+                  mix={slotWrapStyle}
+                >
                   <span mix={slotLabelStyle}>{position.label.toUpperCase()}</span>
                   {completedCard || (placement?.revealed && card) ? (
                     <article mix={revealedStyle}>
@@ -239,6 +391,14 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                     cardBackStyle,
                     pending === index ? selectedStyle : null,
                     on('click', () => choose(index)),
+                    on('pointerdown', (event) => beginGesture(event, index)),
+                    on('lostpointercapture', (event) => {
+                      if (
+                        gesture?.source === event.currentTarget &&
+                        event.pointerId === gesture.pointerId
+                      )
+                        stopGesture(true, false)
+                    }),
                   ]}
                 >
                   <span aria-hidden="true" />
@@ -259,12 +419,34 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
             </button>
           </section>
         )}
+        {gesture?.active && (
+          <div
+            aria-hidden="true"
+            data-drag-preview
+            mix={dragPreviewStyle}
+            style={{ left: `${gesture.x}px`, top: `${gesture.y}px` }}
+          />
+        )}
       </section>
     )
   }
 })
 
 const boardStyle = css({ display: 'flex', flexDirection: 'column', gap: '40px' })
+const dragPreviewStyle = css({
+  boxSizing: 'border-box',
+  position: 'fixed',
+  zIndex: 10,
+  width: '56px',
+  maxWidth: 'calc(100vw - 2px)',
+  maxHeight: 'calc(100vh - 2px)',
+  aspectRatio: '82 / 116',
+  border: '1px solid var(--color-teal)',
+  borderRadius: '8px',
+  background: 'var(--color-card-back) url(/cards/card-back.webp) center / contain no-repeat',
+  pointerEvents: 'none',
+  transform: 'translate(-50%, -50%)',
+})
 const askStyle = css({ display: 'flex', flexDirection: 'column', gap: '20px' })
 const headingStyle = css({
   margin: 0,
@@ -343,6 +525,7 @@ const slotWrapStyle = css({
   flexDirection: 'column',
   alignItems: 'center',
   gap: '8px',
+  '&[data-drop-target]': { outline: '2px dashed var(--color-focus)', outlineOffset: '3px' },
 })
 const slotLabelStyle = css({
   fontFamily: 'var(--font-mono)',

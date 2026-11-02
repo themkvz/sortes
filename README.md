@@ -5,6 +5,11 @@ A small pseudo-tarot reading experience built with Remix 3. Start with a questio
 completed verdict. Ask again starts a fresh in-memory reading. See [Roadmap](#roadmap) for
 work that remains outside this playable milestone.
 
+On desktop, drag an available hidden card with the primary mouse button into an empty spread
+position. A valid drop is final; an invalid drop leaves the reading unchanged. Escape cancels
+the drag and clears selection. Click, tap, and keyboard select-then-place controls remain
+available, and touch keeps normal scrolling.
+
 ## Stack and pinned versions
 
 Core tooling was verified on 2026-10-30; Playwright was added on 2026-11-02:
@@ -127,8 +132,9 @@ TDD is optional. The foundation's tests cover:
 - Environment validation accepts defaults and valid overrides, rejects invalid ones
   (`app/env.test.ts`)
 
-The reading flow has repeatable Remix browser and E2E tests using Playwright. E2E tests use
-Remix's test server adapter and isolated browser pages. Install Chromium once, then run:
+The reading flow has repeatable Remix browser and E2E tests using Playwright, including mouse
+drag placement and cancellation. E2E tests use Remix's test server adapter and isolated browser
+pages. Install Chromium once, then run:
 
 ```sh
 bun x --bun --no-install playwright install chromium
@@ -172,8 +178,7 @@ module).
 ## Roadmap
 
 See `design/mvp-tech-design.md` and the `bootstrap-remix-foundation` change's `design.md` for
-the full milestone table. The playable reading flow and domain rules are implemented. Desktop
-dragging, new card-front artwork, flip animations, detailed visual polish, and sharing remain
-future work; this milestone supports click, tap, and keyboard interaction. The current
-`17/17` task count applies only to `wire-reading-experience`; future work is recorded separately
-in [future scope notes](openspec/future-scope.md); those notes are not completed specs.
+the full milestone table. The playable reading flow, domain rules, and desktop mouse dragging
+are implemented, with click, tap, and keyboard alternatives. New card-front artwork, flip
+animations, detailed visual polish, and sharing remain future work. See the
+[future scope notes](openspec/future-scope.md); each remaining item needs its own proposal.

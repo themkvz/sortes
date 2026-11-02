@@ -116,6 +116,24 @@ async function noBrowserWrites(target: Page) {
   )
 }
 
+async function dragChoice(target: Page, choiceIndex: number, x: number, y: number) {
+  const choice = target.locator(`[data-choice="${choiceIndex}"]`)
+  await choice.scrollIntoViewIfNeeded()
+  const bounds = await choice.boundingBox()
+  if (!bounds) throw new Error(`Choice ${choiceIndex} is not visible`)
+  await target.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+  await target.mouse.down()
+  await target.mouse.move(x, y, { steps: 4 })
+}
+
+async function centerOf(target: Page, selector: string) {
+  const element = target.locator(selector)
+  await element.scrollIntoViewIfNeeded()
+  const bounds = await element.boundingBox()
+  if (!bounds) throw new Error(`${selector} is not visible`)
+  return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+}
+
 async function verdictFor(target: Page, question: string) {
   const cards = await target.locator('[aria-label="Your spread"] article strong').allTextContents()
   const pairs = positions.map((position, index) => {
@@ -137,6 +155,195 @@ async function verdictFor(target: Page, question: string) {
 }
 
 describe('reading experience', () => {
+  test(
+    'places mouse-dragged cards once, keeps identity hidden, and preserves the reveal gate',
+    { timeout: 30_000 },
+    async (t) => {
+      const { page } = await setup(t)
+      page.setDefaultTimeout(2_000)
+      await page.setViewportSize({ width: 1440, height: 1400 })
+      await start(page, 'desktop drag placement')
+      const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
+      await choices.nth(0).click()
+      const dropOrder = [2, 0, 1]
+      const sourceIndexes = [4, 6, 8]
+      for (let step = 0; step < dropOrder.length; step++) {
+        const target = await centerOf(page, `[data-position="${positions[dropOrder[step]].id}"]`)
+        await dragChoice(page, sourceIndexes[step], target.x, target.y)
+        await page.locator('[data-drag-preview]').waitFor({ state: 'visible', timeout: 2_000 })
+        if (step === 0) {
+          const viewport = page.viewportSize()
+          if (!viewport) throw new Error('The drag test requires a fixed viewport')
+          await page.mouse.move(viewport.width - 1, viewport.height - 1)
+          const edgeBounds = await page.locator('[data-drag-preview]').evaluate((element) => {
+            const rect = element.getBoundingClientRect()
+            return { right: rect.right, bottom: rect.bottom }
+          })
+          expect(edgeBounds.right).toBeLessThanOrEqual(viewport.width)
+          expect(edgeBounds.bottom).toBeLessThanOrEqual(viewport.height)
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth),
+          ).toBeLessThanOrEqual(viewport.width)
+          await page.mouse.move(target.x, target.y)
+        }
+        expect(await page.locator('[data-drag-preview]').getAttribute('aria-hidden')).toBe('true')
+        expect(await page.locator('[data-position][data-drop-target]').count()).toBe(1)
+        const boardText = (await page.locator('body').textContent()) ?? ''
+        for (const card of developerDeck.cards) expect(boardText).not.toContain(card.name)
+        expect(await page.locator('[data-reveal]').count()).toBe(step)
+        await page.mouse.up()
+        await page.locator('[data-drag-preview]').waitFor({ state: 'detached', timeout: 2_000 })
+        if (step < 2) {
+          expect(await choices.nth(sourceIndexes[step]).isDisabled()).toBe(true)
+          expect(await choices.nth(0).getAttribute('aria-pressed')).toBe('false')
+        } else expect(await choices.count()).toBe(0)
+        expect(await page.locator('[data-reveal]').count()).toBe(step + 1)
+        if (step < 2) {
+          await page.waitForFunction(
+            (index) => document.activeElement?.getAttribute('data-choice') === String(index),
+            (sourceIndexes[step] + 1) % 9,
+            { timeout: 2_000 },
+          )
+        }
+      }
+      expect(await page.locator('[data-reveal]:not(:disabled)').count()).toBe(3)
+      expect(await page.locator('[data-verdict]').count()).toBe(0)
+      expect(
+        await page
+          .locator('[data-reveal]')
+          .first()
+          .evaluate((el) => document.activeElement === el),
+      ).toBe(true)
+    },
+  )
+
+  test(
+    'rejects invalid drops and Escape cancellation while keeping later click and keyboard actions usable',
+    { timeout: 30_000 },
+    async (t) => {
+      const { page } = await setup(t)
+      await page.setViewportSize({ width: 1440, height: 1400 })
+      await start(page, 'desktop drag cancellation')
+      const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
+      const jitter = await centerOf(page, '[data-choice="0"]')
+      await page.mouse.move(jitter.x, jitter.y)
+      await page.mouse.down()
+      await page.mouse.move(jitter.x + 2, jitter.y + 1)
+      await page.mouse.up()
+      expect(await choices.nth(0).getAttribute('aria-pressed')).toBe('true')
+      await page.keyboard.press('Escape')
+      await page.mouse.move(jitter.x, jitter.y)
+      await page.mouse.down()
+      await page.keyboard.press('Escape')
+      await page.mouse.up()
+      expect(await choices.nth(0).getAttribute('aria-pressed')).toBe('false')
+      expect(await page.locator('[data-reveal]').count()).toBe(0)
+      expect(await page.locator('[data-drag-preview]').count()).toBe(0)
+      await choices.nth(0).focus()
+      await page.keyboard.press('Space')
+      expect(await choices.nth(0).getAttribute('aria-pressed')).toBe('true')
+      await page.keyboard.press('Escape')
+      await choices.nth(1).click()
+      const first = await centerOf(page, `[data-position="${positions[0].id}"]`)
+      await dragChoice(page, 4, first.x, first.y)
+      expect(await page.locator('[data-drop-target]').count()).toBe(1)
+      await page.mouse.move(8, 8, { steps: 3 })
+      expect(await page.locator('[data-position] article, [data-reveal]').count()).toBe(0)
+      await page.mouse.up()
+      expect(await choices.nth(1).getAttribute('aria-pressed')).toBe('true')
+      expect(await page.locator('[data-drag-preview]').count()).toBe(0)
+
+      const interrupt = await centerOf(page, '[data-choice="5"]')
+      await page.mouse.move(interrupt.x, interrupt.y)
+      await page.mouse.down()
+      await page.mouse.move(first.x, first.y, { steps: 3 })
+      await page.evaluate(() =>
+        window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1 })),
+      )
+      await page.mouse.up()
+      expect(await choices.nth(1).getAttribute('aria-pressed')).toBe('true')
+      expect(await page.locator('[data-drag-preview]').count()).toBe(0)
+
+      await page.mouse.move(interrupt.x, interrupt.y)
+      await page.mouse.down()
+      await page.mouse.move(first.x, first.y, { steps: 3 })
+      await page.locator('[data-choice="5"]').evaluate((element) => {
+        const source = element as HTMLButtonElement
+        source.releasePointerCapture(1)
+      })
+      await page.mouse.up()
+      expect(await choices.nth(1).getAttribute('aria-pressed')).toBe('true')
+      expect(await page.locator('[data-drag-preview]').count()).toBe(0)
+
+      await page.mouse.move(interrupt.x, interrupt.y)
+      await page.mouse.down()
+      await page.mouse.move(first.x, first.y, { steps: 3 })
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')))
+      await page.mouse.up()
+      expect(await choices.nth(1).getAttribute('aria-pressed')).toBe('true')
+      expect(await page.locator('[data-drag-preview]').count()).toBe(0)
+
+      const sourceCenter = await centerOf(page, '[data-choice="5"]')
+      await page.mouse.move(sourceCenter.x, sourceCenter.y)
+      await page.mouse.down()
+      await page.mouse.move(first.x, first.y, { steps: 3 })
+      await page.keyboard.press('Escape')
+      await page.mouse.up()
+      expect(await choices.nth(1).getAttribute('aria-pressed')).toBe('false')
+      expect(await page.locator('[data-reveal]').count()).toBe(0)
+      expect(await page.locator('[data-drag-preview]').count()).toBe(0)
+
+      await choices.nth(2).click()
+      await page.getByRole('button', { name: `Place card in ${positions[0].label}` }).click()
+      await choices.nth(1).click()
+      const occupied = await centerOf(page, `[data-position="${positions[0].id}"]`)
+      await dragChoice(page, 4, occupied.x, occupied.y)
+      await page.mouse.up()
+      expect(await choices.nth(1).getAttribute('aria-pressed')).toBe('true')
+      expect(await page.locator('[data-reveal]').count()).toBe(1)
+      await choices.nth(1).click()
+      await choices.nth(3).focus()
+      await page.keyboard.press('Space')
+      await page.getByRole('button', { name: `Place card in ${positions[1].label}` }).click()
+      expect(await page.locator('[data-reveal]').count()).toBe(2)
+    },
+  )
+
+  test(
+    'keeps a mouse drag when touch pointer capture is lost on the source',
+    { timeout: 30_000 },
+    async (t) => {
+      const { page, errors, unexpectedRequests } = await setup(t)
+      page.setDefaultTimeout(2_000)
+      const hybrid = await openPage(page, errors, unexpectedRequests, { hasTouch: true })
+      t.after(() => hybrid.context.close())
+      const target = hybrid.page
+      target.setDefaultTimeout(2_000)
+      await target.setViewportSize({ width: 1440, height: 1400 })
+      await start(target, 'hybrid pointer drag')
+      const sourcePoint = await centerOf(target, '[data-choice="5"]')
+      const destination = await centerOf(target, `[data-position="${positions[0].id}"]`)
+      await target.mouse.move(sourcePoint.x, sourcePoint.y)
+      await target.mouse.down()
+      await target.mouse.move(destination.x, destination.y, { steps: 3 })
+      await target.locator('[data-drag-preview]').waitFor({ state: 'visible' })
+      await target.touchscreen.tap(sourcePoint.x, sourcePoint.y)
+      await target.locator('[data-drag-preview]').waitFor({ state: 'visible' })
+      expect(await target.locator('[data-drop-target]').count()).toBe(1)
+      await target.mouse.up()
+      expect(
+        await target
+          .getByRole('button', { name: `Hidden card in ${positions[0].label} card` })
+          .isDisabled(),
+      ).toBe(true)
+      expect(
+        await target
+          .locator('[data-choice="6"]')
+          .evaluate((element) => document.activeElement === element),
+      ).toBe(true)
+    },
+  )
+
   test(
     'replaces a pending choice, supports Escape, and places cards once with focus recovery',
     { timeout: 30_000 },
