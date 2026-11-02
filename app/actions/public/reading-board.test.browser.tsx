@@ -3,7 +3,7 @@ import { expect } from 'remix/assert'
 import { render } from 'remix/component/test'
 import { describe, test } from 'remix/test'
 
-import { ReadingBoard } from './public/initial-board.tsx'
+import { ReadingBoard } from './reading-board.tsx'
 
 describe('ReadingBoard initial question', () => {
   test('validates and normalizes questions, then starts once', async (t) => {

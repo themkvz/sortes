@@ -1,9 +1,9 @@
 import { css } from 'remix/component'
 
 import { Document } from './document.tsx'
-import { ReadingBoard } from './public/initial-board.tsx'
+import { ReadingBoard } from './public/reading-board.tsx'
 
-export function BoardPage() {
+export function HomePage() {
   return () => (
     <Document>
       <main mix={mainStyle}>

@@ -1,8 +1,9 @@
 import { assert } from 'remix/assert'
 
-import type { Card, Deck } from './deck.ts'
+import type { Deck } from './deck.ts'
 
-const QUESTION_MAX_CODE_POINTS = 160
+export const QUESTION_MAX_CODE_POINTS = 160
+export const CHOICE_COUNT = 9
 
 export type QuestionResult =
   | { readonly success: true; readonly value: string }
@@ -114,7 +115,9 @@ export function start(
     deck.cards.map((card) => card.id),
     rng,
   )
-  const choices: Choice[] = shuffled.slice(0, 9).map((cardId) => ({ cardId, picked: false }))
+  const choices: Choice[] = shuffled
+    .slice(0, CHOICE_COUNT)
+    .map((cardId) => ({ cardId, picked: false }))
 
   return {
     success: true,
@@ -127,25 +130,31 @@ export function start(
   }
 }
 
+export function canPick(state: ReadingState, choiceIndex: number): boolean {
+  if (state.status !== 'choosing') return false
+  const choice = state.choices[choiceIndex]
+  return choice !== undefined && !choice.picked
+}
+
+export function canPlace(state: ReadingState, positionId: PositionId): boolean {
+  return state.status === 'choosing' && !(positionId in state.placements)
+}
+
 export function place(
   deck: Deck,
   state: ReadingState,
   choiceIndex: number,
   positionId: PositionId,
 ): ReadingState {
-  if (state.status !== 'choosing') {
+  if (
+    state.status !== 'choosing' ||
+    !canPick(state, choiceIndex) ||
+    !canPlace(state, positionId) ||
+    !deck.positions.some((position) => position.id === positionId)
+  ) {
     return state
   }
   const choice = state.choices[choiceIndex]
-  if (!choice || choice.picked) {
-    return state
-  }
-  if (!deck.positions.some((position) => position.id === positionId)) {
-    return state
-  }
-  if (positionId in state.placements) {
-    return state
-  }
 
   const nextChoices = state.choices.map((existing, index) =>
     index === choiceIndex ? { ...existing, picked: true } : existing,
@@ -196,7 +205,7 @@ export function reveal(deck: Deck, state: ReadingState, positionId: PositionId):
     return {
       status: 'complete',
       question: state.question,
-      interpretation: computeInterpretation(deck, { question: state.question, pairs }),
+      interpretation: interpret(deck, { question: state.question, pairs }),
     }
   }
 
@@ -216,24 +225,37 @@ function fnv1aHash(input: string): number {
   return hash
 }
 
-function computeInterpretation(deck: Deck, reading: CompletedReading): Interpretation {
-  const cardsById = new Map<string, Card>(deck.cards.map((card) => [card.id, card]))
-  const fragmentsByPosition = new Map<string, string>()
+function findMeaning(deck: Deck, positionId: PositionId, cardId: string) {
+  const card = deck.cards.find((item) => item.id === cardId)
+  assert(card !== undefined, `Missing card ${cardId}`)
+  const meaning = card.meanings[positionId]
+  assert(meaning !== undefined, `Missing meaning for position ${positionId}`)
+  return { card, meaning }
+}
 
-  const cards: CardInterpretation[] = reading.pairs.map((pair) => {
-    const card = cardsById.get(pair.cardId)
-    assert(card !== undefined, `Missing card ${pair.cardId}`)
-    const meaning = card.meanings[pair.positionId]
-    assert(meaning !== undefined, `Missing meaning for position ${pair.positionId}`)
-    fragmentsByPosition.set(pair.positionId, meaning.summaryFragment)
-    return {
-      positionId: pair.positionId,
-      cardId: pair.cardId,
-      cardName: card.name,
-      shortDescription: card.shortDescription,
-      meaning: meaning.text,
-    }
-  })
+export function interpretCard(
+  deck: Deck,
+  positionId: PositionId,
+  cardId: string,
+): CardInterpretation {
+  const { card, meaning } = findMeaning(deck, positionId, cardId)
+  return {
+    positionId,
+    cardId,
+    cardName: card.name,
+    shortDescription: card.shortDescription,
+    meaning: meaning.text,
+  }
+}
+
+function interpret(deck: Deck, reading: CompletedReading): Interpretation {
+  const cards = reading.pairs.map((pair) => interpretCard(deck, pair.positionId, pair.cardId))
+  const fragmentsByPosition = new Map<string, string>(
+    reading.pairs.map((pair) => [
+      pair.positionId,
+      findMeaning(deck, pair.positionId, pair.cardId).meaning.summaryFragment,
+    ]),
+  )
 
   const seed = JSON.stringify([
     reading.question,

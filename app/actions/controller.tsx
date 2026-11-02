@@ -2,7 +2,7 @@ import { createController } from 'remix/router'
 
 import { assets } from '../assets.ts'
 import { routes } from '../routes.ts'
-import { BoardPage } from './board-page.tsx'
+import { HomePage } from './home-page.tsx'
 
 export default createController(routes, {
   actions: {
@@ -10,7 +10,7 @@ export default createController(routes, {
       return (await assets.fetch(context.request)) ?? new Response('Not Found', { status: 404 })
     },
     home(context) {
-      return context.render(<BoardPage />)
+      return context.render(<HomePage />)
     },
   },
 })

@@ -4,7 +4,7 @@ import { createTestServer } from 'remix/node-fetch-server/test'
 import { describe, type TestContext, test } from 'remix/test'
 
 import { developerDeck } from '../../app/domain/tarot/decks/developer.ts'
-import { place, type ReadingState, reveal } from '../../app/domain/tarot/reading.ts'
+import { idle, place, reveal, start as startReading } from '../../app/domain/tarot/reading.ts'
 import { createAppRouter } from '../../app/router.tsx'
 
 const positions = developerDeck.positions
@@ -135,21 +135,21 @@ async function centerOf(target: Page, selector: string) {
 }
 
 async function verdictFor(target: Page, question: string) {
-  const cards = await target.locator('[aria-label="Your spread"] article strong').allTextContents()
-  let state: ReadingState = {
-    status: 'choosing',
-    question,
-    choices: positions.map((_position, index) => {
-      const card = developerDeck.cards.find((candidate) => candidate.name === cards[index])
-      if (!card) throw new Error(`No deck card matches rendered face: ${cards[index]}`)
-      return { cardId: card.id, picked: false }
-    }),
-    placements: {},
-  }
-  positions.forEach((position, index) => {
-    state = place(developerDeck, state, index, position.id)
+  const faces = await target.locator('[aria-label="Your spread"] article strong').allTextContents()
+  const cards = positions.map((_position, index) => {
+    const card = developerDeck.cards.find((candidate) => candidate.name === faces[index])
+    if (!card) throw new Error(`No deck card matches rendered face: ${faces[index]}`)
+    return card
   })
-  for (const position of positions) state = reveal(developerDeck, state, position.id)
+  // A deck of only the rendered cards and an order-keeping RNG make choice index match position.
+  const deck = { ...developerDeck, cards }
+  const result = startReading(deck, idle(), question, () => 0.999)
+  if (!result.success) throw new Error('Expected successful start')
+  let state = result.value
+  positions.forEach((position, index) => {
+    state = place(deck, state, index, position.id)
+  })
+  for (const position of positions) state = reveal(deck, state, position.id)
   if (state.status !== 'complete') throw new Error('Expected complete state')
   const verdict = target.locator('[aria-label="Reading result"] p').nth(1)
   expect(await verdict.textContent()).toBe(state.interpretation.verdict)
