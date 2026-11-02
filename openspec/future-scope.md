@@ -16,7 +16,7 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
 
 - **`add-card-front-artwork`**: All 16 developer cards have approved engraved fronts, revealed
   individually alongside accessible text. Optimized local images preserve the shared back
-  and leave readings usable when images fail. See the [change](changes/add-card-front-artwork/proposal.md)
+  and leave readings usable when images fail. See the [change](changes/archive/2026-11-02-add-card-front-artwork/proposal.md)
   and [asset review record](../design/card-fronts/README.md).
 
 ## Suggested changes
