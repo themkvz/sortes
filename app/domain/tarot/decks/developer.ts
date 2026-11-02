@@ -1,4 +1,4 @@
-import { defineDeck } from '../deck.ts'
+import type { Deck } from '../deck.ts'
 
 const POSITIONS = [
   { id: 'context', label: 'Context' },
@@ -177,12 +177,11 @@ const CARDS = CARD_SEEDS.map((seed) => ({
   },
 }))
 
-export const developerDeck = defineDeck({
+export const developerDeck: Deck = {
   id: 'developer',
   name: 'Developer Tarot',
-  spreadId: 'context-problem-advice',
   positions: POSITIONS,
   cards: CARDS,
   prompts: PROMPTS,
   templates: TEMPLATES,
-})
+}

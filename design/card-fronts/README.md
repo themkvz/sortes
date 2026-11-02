@@ -49,14 +49,14 @@ Avoid: ALL text, letters, numbers, captions, titles, watermarks, logos, zodiac s
 
 ## Review
 
-[Open the review sheet](index.html) for all 16 labelled fronts at 164px or 82px width. Each image links to its full-resolution source PNG. The user approved this generated set, including the database revision, separately from the earlier style selection.
+The user approved this generated set, including the database revision, separately from the earlier style selection. The review sheet and drafts were removed after approval; they remain in git history.
 
 ## Targeted database revision
 
-The first database rendering resembled vinyl records. The final source uses thick stacked database cylinders instead; the original is retained in `drafts/production-database-v1.png`.
+The first database rendering resembled vinyl records. The final source uses thick stacked database cylinders instead.
 
 - Tool: built-in ImageGen.
-- Input at generation time: `design/card-fronts/production-database.png` (the first rendering, now retained in drafts).
+- Input at generation time: `design/card-fronts/production-database.png` (the first rendering).
 - `transparent_background: false`.
 - Selected output: `production-database.png`.
 

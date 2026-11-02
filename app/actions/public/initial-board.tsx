@@ -1,10 +1,10 @@
 import { clientEntry, css, type Handle, on, ref } from 'remix/component'
 
 import { developerDeck } from '../../domain/tarot/decks/developer.ts'
-import { idle, place, type ReadingState, reset, reveal, start } from '../../domain/tarot/reading.ts'
+import { idle, place, type ReadingState, reveal, start } from '../../domain/tarot/reading.ts'
 
 export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(handle: Handle) {
-  let state: ReadingState = idle(developerDeck)
+  let state: ReadingState = idle()
   let draft = ''
   let pending: number | null = null
   let error = ''
@@ -112,20 +112,10 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
     }
     const finish = (pointerEvent: PointerEvent) => {
       if (gesture !== current || pointerEvent.pointerId !== current.pointerId) return
-      if (current.active && pointerEvent.type === 'pointerup') {
-        current.target = dragTargetAt(pointerEvent.clientX, pointerEvent.clientY)
-        const currentState = state
-        const choiceValid =
-          currentState.status === 'choosing' && !currentState.choices[current.choiceIndex]?.picked
-        const positionId = current.target
-        const valid =
-          positionId &&
-          choiceValid &&
-          currentState.status === 'choosing' &&
-          !currentState.placements[positionId]
-        stopGesture(true, false)
-        if (valid) put(positionId, current.choiceIndex)
-      } else stopGesture(true, false)
+      const isDrop = current.active && pointerEvent.type === 'pointerup'
+      const target = isDrop ? dragTargetAt(pointerEvent.clientX, pointerEvent.clientY) : null
+      stopGesture(true, false)
+      if (isDrop && target) put(target, current.choiceIndex)
     }
     window.addEventListener('pointermove', move, { signal: controller.signal })
     window.addEventListener('pointerup', finish, { signal: controller.signal })
@@ -201,7 +191,7 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
   }
 
   const restart = () => {
-    state = reset(state)
+    state = idle()
     draft = ''
     pending = null
     error = ''

@@ -14,7 +14,7 @@ function countingRng(rng: () => number) {
 }
 
 test('starting idle with a manual question stores it and prepares nine hidden choices', () => {
-  const result = start(developerDeck, idle(developerDeck), 'Should I merge this PR?', () => 0.5)
+  const result = start(developerDeck, idle(), 'Should I merge this PR?', () => 0.5)
   if (!result.success) throw new Error('Expected successful start')
   const state = result.value
   expect(state.status).toBe('choosing')
@@ -26,7 +26,7 @@ test('starting idle with a manual question stores it and prepares nine hidden ch
 })
 
 test('starting idle with empty/whitespace input chooses a configured prompt and prepares choices', () => {
-  const result = start(developerDeck, idle(developerDeck), '   ', () => 0)
+  const result = start(developerDeck, idle(), '   ', () => 0)
   if (!result.success) throw new Error('Expected successful start')
   const state = result.value
   if (state.status !== 'choosing') throw new Error('Expected choosing status')
@@ -35,7 +35,7 @@ test('starting idle with empty/whitespace input chooses a configured prompt and 
 })
 
 test('the nine hidden choices are real, distinct card IDs from the deck', () => {
-  const result = start(developerDeck, idle(developerDeck), 'A question', () => 0.9)
+  const result = start(developerDeck, idle(), 'A question', () => 0.9)
   if (!result.success) throw new Error('Expected successful start')
   const state = result.value
   if (state.status !== 'choosing') throw new Error('Expected choosing status')
@@ -47,7 +47,7 @@ test('the nine hidden choices are real, distinct card IDs from the deck', () => 
 
 test('setup does not mutate the authored deck', () => {
   const cardsBefore = JSON.stringify(developerDeck.cards)
-  start(developerDeck, idle(developerDeck), 'A question', () => 0.3)
+  start(developerDeck, idle(), 'A question', () => 0.3)
   expect(JSON.stringify(developerDeck.cards)).toBe(cardsBefore)
 })
 
@@ -58,8 +58,8 @@ test('independent sessions have different choices with a shared counting RNG', (
     // deterministic but different sequences per session by using a shared mutable counter
     return (counter % 97) / 97
   }
-  const sessionA = start(developerDeck, idle(developerDeck), 'Same question', rng)
-  const sessionB = start(developerDeck, idle(developerDeck), 'Same question', rng)
+  const sessionA = start(developerDeck, idle(), 'Same question', rng)
+  const sessionB = start(developerDeck, idle(), 'Same question', rng)
   if (!sessionA.success || !sessionB.success) throw new Error('Expected successful starts')
   if (sessionA.value.status !== 'choosing' || sessionB.value.status !== 'choosing') {
     throw new Error('Expected choosing status')
@@ -70,13 +70,13 @@ test('independent sessions have different choices with a shared counting RNG', (
 test('an invalid question consumes zero random draws and leaves idle', () => {
   const { wrapped, count } = countingRng(() => 0.5)
   const tooLong = 'a'.repeat(161)
-  const result = start(developerDeck, idle(developerDeck), tooLong, wrapped)
+  const result = start(developerDeck, idle(), tooLong, wrapped)
   expect(result).toEqual({ success: false, error: 'invalid-question' })
   expect(count()).toBe(0)
 })
 
 test('a repeated start outside idle consumes zero random draws and is a no-op', () => {
-  const started = start(developerDeck, idle(developerDeck), 'First question', () => 0.5)
+  const started = start(developerDeck, idle(), 'First question', () => 0.5)
   if (!started.success) throw new Error('Expected successful start')
   const choosingState = started.value
 

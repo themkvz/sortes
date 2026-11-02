@@ -1,8 +1,8 @@
 import { expect } from 'remix/assert'
 import { test } from 'remix/test'
 
-import { defineDeck } from './deck.ts'
-import { idle, interpret, place, reset, reveal, start } from './reading.ts'
+import type { Deck } from './deck.ts'
+import { idle, place, reveal, start } from './reading.ts'
 
 function meaning(fragment: string) {
   return {
@@ -13,10 +13,9 @@ function meaning(fragment: string) {
 
 // A deck with renamed positions, card IDs, and labels, proving the engine has no
 // branch depending on the developer deck's specific names or English labels.
-const renamedDeck = defineDeck({
+const renamedDeck: Deck = {
   id: 'astro-deck',
   name: 'Astro Deck',
-  spreadId: 'past-present-future',
   positions: [
     { id: 'yesterday', label: 'Hier' },
     { id: 'today', label: "Aujourd'hui" },
@@ -34,10 +33,10 @@ const renamedDeck = defineDeck({
   })),
   prompts: ['What does the orb say?'],
   templates: ['Then: {yesterday}. Now: {today}. Next: {tomorrow}.'],
-})
+}
 
-test('a full start/place/reveal/interpret/reset sequence works generically on a renamed deck', () => {
-  let state = idle(renamedDeck)
+test('a full start/place/reveal sequence works generically on a renamed deck', () => {
+  let state = idle()
   expect(state.status).toBe('idle')
 
   const started = start(renamedDeck, state, 'Will it glow?', () => 0.55)
@@ -57,19 +56,10 @@ test('a full start/place/reveal/interpret/reset sequence works generically on a 
   state = reveal(renamedDeck, state, 'tomorrow')
   if (state.status !== 'complete') throw new Error('Expected complete state')
 
-  expect(state.reading.deckId).toBe('astro-deck')
-  expect(state.reading.spreadId).toBe('past-present-future')
-  expect(state.reading.pairs.map((pair) => pair.positionId)).toEqual([
+  expect(state.interpretation.cards.map((card) => card.positionId)).toEqual([
     'yesterday',
     'today',
     'tomorrow',
   ])
   expect(state.interpretation.verdict).not.toMatch(/\{[^}]*\}/)
-
-  const standalone = interpret(renamedDeck, state.reading)
-  if (!standalone.success) throw new Error('Expected successful interpretation')
-  expect(standalone.value).toEqual(state.interpretation)
-
-  const afterReset = reset(state)
-  expect(afterReset).toEqual({ status: 'idle', deckId: 'astro-deck', question: '' })
 })

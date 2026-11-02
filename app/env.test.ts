@@ -5,7 +5,6 @@ import { loadServerEnv } from './env.ts'
 
 test('defaults succeed without any env vars set', () => {
   const env = loadServerEnv({})
-  expect(env.mode).toBe('development')
   expect(env.port).toBe(44100)
   expect(env.host).toBe('0.0.0.0')
 })
@@ -24,5 +23,5 @@ test('rejects an unsupported NODE_ENV value', () => {
 
 test('accepts a valid explicit production configuration', () => {
   const env = loadServerEnv({ NODE_ENV: 'production', PORT: '8080', HOST: '127.0.0.1' })
-  expect(env).toEqual({ host: '127.0.0.1', port: 8080, mode: 'production' })
+  expect(env).toEqual({ host: '127.0.0.1', port: 8080 })
 })

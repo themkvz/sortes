@@ -1,7 +1,6 @@
 export interface ServerEnv {
   host: string
   port: number
-  mode: 'development' | 'production' | 'test'
 }
 
 const VALID_MODES = ['development', 'production', 'test'] as const
@@ -20,5 +19,5 @@ export function loadServerEnv(env: Record<string, string | undefined> = process.
     throw new Error(`Invalid PORT "${rawPort}". Expected an integer between 1 and 65535.`)
   }
 
-  return { host, port, mode: mode as ServerEnv['mode'] }
+  return { host, port }
 }

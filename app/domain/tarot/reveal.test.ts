@@ -5,7 +5,7 @@ import { developerDeck } from './decks/developer.ts'
 import { idle, place, reveal, start } from './reading.ts'
 
 function readyState() {
-  const started = start(developerDeck, idle(developerDeck), 'A question', () => 0.1)
+  const started = start(developerDeck, idle(), 'A question', () => 0.1)
   if (!started.success) throw new Error('Expected successful start')
   let state = started.value
   if (state.status !== 'choosing') throw new Error('Expected choosing status')
@@ -17,7 +17,7 @@ function readyState() {
 }
 
 test('a premature reveal before all positions are filled is a no-op', () => {
-  const started = start(developerDeck, idle(developerDeck), 'A question', () => 0.1)
+  const started = start(developerDeck, idle(), 'A question', () => 0.1)
   if (!started.success) throw new Error('Expected successful start')
   let choosing = started.value
   if (choosing.status !== 'choosing') throw new Error('Expected choosing status')
@@ -29,7 +29,7 @@ test('a premature reveal before all positions are filled is a no-op', () => {
 })
 
 test('reveal before ready (idle) is a no-op', () => {
-  const idleState = idle(developerDeck)
+  const idleState = idle()
   expect(reveal(developerDeck, idleState, 'context')).toBe(idleState)
 })
 
@@ -46,7 +46,6 @@ test('one reveal marks only that card revealed and keeps the verdict unavailable
   expect(revealing.placements.context?.revealed).toBe(true)
   expect(revealing.placements.problem?.revealed).toBe(false)
   expect(revealing.placements.advice?.revealed).toBe(false)
-  expect(!('reading' in revealing)).toBeTruthy()
   expect(!('interpretation' in revealing)).toBeTruthy()
 })
 
@@ -64,7 +63,7 @@ test('the third reveal produces the completed reading and interpretation immedia
   const complete = reveal(developerDeck, state, 'advice')
   expect(complete.status).toBe('complete')
   if (complete.status !== 'complete') throw new Error('Expected complete status')
-  expect(complete.reading.pairs.length).toBe(3)
+  expect(complete.interpretation.cards.length).toBe(3)
   expect(complete.interpretation.verdict.length > 0).toBeTruthy()
 })
 

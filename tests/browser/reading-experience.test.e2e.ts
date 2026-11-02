@@ -4,7 +4,7 @@ import { createTestServer } from 'remix/node-fetch-server/test'
 import { describe, type TestContext, test } from 'remix/test'
 
 import { developerDeck } from '../../app/domain/tarot/decks/developer.ts'
-import { type CompletedReading, interpret } from '../../app/domain/tarot/reading.ts'
+import { place, type ReadingState, reveal } from '../../app/domain/tarot/reading.ts'
 import { createAppRouter } from '../../app/router.tsx'
 
 const positions = developerDeck.positions
@@ -136,21 +136,23 @@ async function centerOf(target: Page, selector: string) {
 
 async function verdictFor(target: Page, question: string) {
   const cards = await target.locator('[aria-label="Your spread"] article strong').allTextContents()
-  const pairs = positions.map((position, index) => {
-    const card = developerDeck.cards.find((candidate) => candidate.name === cards[index])
-    if (!card) throw new Error(`No deck card matches rendered face: ${cards[index]}`)
-    return { positionId: position.id, cardId: card.id }
-  })
-  const result = interpret(developerDeck, {
-    version: 1,
-    deckId: developerDeck.id,
+  let state: ReadingState = {
+    status: 'choosing',
     question,
-    spreadId: developerDeck.spreadId,
-    pairs,
-  } satisfies CompletedReading)
-  expect(result.success).toBe(true)
+    choices: positions.map((_position, index) => {
+      const card = developerDeck.cards.find((candidate) => candidate.name === cards[index])
+      if (!card) throw new Error(`No deck card matches rendered face: ${cards[index]}`)
+      return { cardId: card.id, picked: false }
+    }),
+    placements: {},
+  }
+  positions.forEach((position, index) => {
+    state = place(developerDeck, state, index, position.id)
+  })
+  for (const position of positions) state = reveal(developerDeck, state, position.id)
+  if (state.status !== 'complete') throw new Error('Expected complete state')
   const verdict = target.locator('[aria-label="Reading result"] p').nth(1)
-  expect(await verdict.textContent()).toBe(result.success ? result.value.verdict : '')
+  expect(await verdict.textContent()).toBe(state.interpretation.verdict)
   expect((await verdict.textContent())?.trim()).not.toBe('')
 }
 
