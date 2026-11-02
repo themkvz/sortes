@@ -34,7 +34,7 @@ export interface Choice {
   readonly picked: boolean
 }
 
-interface CompletedReading {
+export interface CompletedReading {
   readonly question: string
   readonly pairs: ReadonlyArray<{ readonly positionId: string; readonly cardId: string }>
 }
@@ -248,7 +248,7 @@ export function interpretCard(
   }
 }
 
-function interpret(deck: Deck, reading: CompletedReading): Interpretation {
+export function interpret(deck: Deck, reading: CompletedReading): Interpretation {
   const cards = reading.pairs.map((pair) => interpretCard(deck, pair.positionId, pair.cardId))
   const fragmentsByPosition = new Map<string, string>(
     reading.pairs.map((pair) => [

@@ -418,6 +418,7 @@ describe('reading experience', () => {
         }
       })
       await start(page, 'privacy sentinel question')
+      expect(await page.getByRole('button', { name: 'Share', exact: true }).count()).toBe(0)
       const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
       for (let index = 0; index < 3; index++) {
         await choices.nth(index + 4).click()
@@ -576,7 +577,8 @@ describe('reading experience', () => {
         expect(faces[positions.indexOf(position)]).toContain(card.name)
         expect(faces[positions.indexOf(position)]).toContain(card.meanings[position.id].text)
       }
-      expect(await page.getByRole('button', { name: /Reveal all|Share/i }).count()).toBe(0)
+      expect(await page.getByRole('button', { name: /Reveal all/i }).count()).toBe(0)
+      expect(await page.getByRole('button', { name: 'Share' }).count()).toBe(1)
       expect(await noBrowserWrites(page)).toBe(true)
       expect(
         await page.evaluate(
@@ -615,6 +617,155 @@ describe('reading experience', () => {
     expect(await page.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe('')
     expect(await page.locator('[data-verdict]').count()).toBe(0)
     expect(await noBrowserWrites(page)).toBe(true)
+  })
+
+  test('requires consent before creating a link and copies only after confirmation', async (t) => {
+    const { page } = await setup(t)
+    expect(await page.getByRole('button', { name: 'Share', exact: true }).count()).toBe(0)
+    await page.evaluate(() => {
+      const writes: string[] = []
+      Object.defineProperty(window, '__clipboardWrites', { value: writes })
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (value: string) => writes.push(value) },
+      })
+    })
+    await complete(page, 'share consent question')
+    const share = page.getByRole('button', { name: 'Share', exact: true })
+    await share.click()
+    const dialog = page.getByRole('dialog')
+    await dialog
+      .getByText(
+        'Your question will be included in the shared link. Anyone with the link can read it.',
+      )
+      .waitFor()
+    const warningId = await dialog.getAttribute('aria-describedby')
+    expect(warningId).not.toBeNull()
+    expect(await page.locator(`#${warningId}`).textContent()).toBe(
+      'Your question will be included in the shared link. Anyone with the link can read it.',
+    )
+    expect(await page.getByLabel('Share link').count()).toBe(0)
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __clipboardWrites?: string[] }).__clipboardWrites,
+      ),
+    ).toEqual([])
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    expect(await share.evaluate((element) => document.activeElement === element)).toBe(true)
+
+    await share.click()
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __clipboardWrites?: string[] }).__clipboardWrites,
+      ),
+    ).toEqual([])
+    expect(await share.evaluate((element) => document.activeElement === element)).toBe(true)
+
+    await share.click()
+    await dialog.getByRole('button', { name: 'Share anyway' }).click()
+    const field = page.getByLabel('Share link')
+    await field.waitFor()
+    await page.waitForFunction(
+      () => document.querySelector('[role="status"]')?.textContent === 'Link copied.',
+    )
+    const copied = await page.evaluate(
+      () => (window as Window & { __clipboardWrites?: string[] }).__clipboardWrites ?? [],
+    )
+    expect(copied).toEqual([await field.inputValue()])
+    expect(new URL(copied[0]).origin).toBe(new URL(page.url()).origin)
+    expect(new URL(copied[0]).pathname).toMatch(/^\/r\//)
+  })
+
+  test('shows a selectable URL when clipboard access rejects or is absent', async (t) => {
+    for (const clipboard of ['rejected', 'absent'] as const) {
+      const { page, errors, unexpectedRequests } = await setup(t)
+      await page.evaluate((mode) => {
+        if (mode === 'absent') {
+          Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+        } else {
+          Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText: () => Promise.reject(new Error('denied')) },
+          })
+        }
+      }, clipboard)
+      await complete(page, `share clipboard ${clipboard}`)
+      await page.getByRole('button', { name: 'Share', exact: true }).click()
+      await page.getByRole('button', { name: 'Share anyway' }).click()
+      const field = page.getByLabel('Share link')
+      await field.waitFor()
+      await page.waitForFunction(
+        () =>
+          document.querySelector('[role="status"]')?.textContent ===
+          'Could not copy. Select and copy the link below.',
+      )
+      expect(await field.isEditable()).toBe(false)
+      expect(await field.inputValue()).toContain('/r/')
+      expect(errors).toEqual([])
+      expect(unexpectedRequests).toEqual([])
+    }
+  })
+
+  test('serves shared results without JavaScript and recovers from invalid links', async (t) => {
+    const { page, errors, unexpectedRequests } = await setup(t)
+    await complete(page, 'shared server rendered question')
+    await page.getByRole('button', { name: 'Share', exact: true }).click()
+    await page.getByRole('button', { name: 'Share anyway' }).click()
+    const sharedUrl = await page.getByLabel('Share link').inputValue()
+    const noJs = await openPage(
+      page,
+      errors,
+      unexpectedRequests,
+      { javaScriptEnabled: false, viewport: { width: 320, height: 900 } },
+      false,
+    )
+    t.after(() => noJs.context.close())
+    await noJs.page.route('**/cards/developer/fronts/*.webp', (route) => route.abort())
+    const response = await noJs.page.goto(sharedUrl)
+    expect(response?.status()).toBe(200)
+    await noJs.page.getByText('shared server rendered question').waitFor()
+    expect(await noJs.page.locator('[data-position]').count()).toBe(3)
+    expect(await noJs.page.locator('[data-front-art]').count()).toBe(3)
+    expect(await noJs.page.getByRole('link', { name: 'Start a new reading' }).count()).toBe(1)
+    expect(await noJs.page.getByRole('button', { name: 'Share' }).count()).toBe(0)
+    expect(await noJs.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    )
+    const invalid = await noJs.page.request.get(new URL('/r/not-valid', sharedUrl).toString())
+    expect(invalid.status()).toBe(400)
+    const invalidBody = await invalid.text()
+    expect(invalidBody).toContain('The cards cannot read this timeline.')
+    expect(invalidBody).toContain('href="/"')
+    expect(invalidBody).not.toContain('not-valid')
+    expect(errors).toEqual([])
+    expect(unexpectedRequests).toEqual([])
+  })
+
+  test('restart discards a pending clipboard result and requires fresh confirmation', async (t) => {
+    const { page } = await setup(t)
+    await page.evaluate(() => {
+      let resolveCopy!: () => void
+      const pending = new Promise<void>((resolve) => (resolveCopy = resolve))
+      Object.defineProperty(window, '__resolveCopy', { value: resolveCopy })
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: () => pending },
+      })
+    })
+    await complete(page, 'pending shared question')
+    await page.getByRole('button', { name: 'Share', exact: true }).click()
+    await page.getByRole('button', { name: 'Share anyway' }).click()
+    await page.getByLabel('Share link').waitFor()
+    await page.getByRole('button', { name: 'Ask again' }).click()
+    expect(await page.getByLabel('Share link').count()).toBe(0)
+    await page.evaluate(() => (window as Window & { __resolveCopy?: () => void }).__resolveCopy?.())
+    await page.waitForTimeout(20)
+    expect(await page.getByLabel('Share link').count()).toBe(0)
+    await complete(page, 'new private reading')
+    expect(await page.getByLabel('Share link').count()).toBe(0)
+    expect(await page.getByRole('button', { name: 'Share', exact: true }).count()).toBe(1)
   })
 
   for (const width of [1440, 390, 320]) {

@@ -24,18 +24,21 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
   a flip. Restart cancels old effects. See the [change](changes/archive/2026-11-02-add-card-reveal-motion/proposal.md)
   and [implementation check](../anti-slop/audit-004-2026-11-02.md).
 
+- **`add-reading-sharing`**: Completed readings can create a V1 share URL after the privacy
+  warning and explicit confirmation. Recipients get a read-only server-rendered result;
+  invalid links have a controlled recovery page. Clipboard failure leaves a selectable URL.
+  No database is used; historical deck-content compatibility remains outside this milestone.
+  See the [change](changes/archive/2026-11-02-add-reading-sharing/proposal.md) and
+  [implementation check](../anti-slop/audit-005-2026-11-02.md).
+
 ## Suggested changes
 
-- **`add-reading-sharing`** — Share completed readings only. Show a privacy warning and require
-  explicit confirmation before exposing or copying a URL. Define a versioned payload and
-  read-only shared route that reproduces the deterministic result; handle malformed payloads.
-  No database is needed for sharing. Specify route and payload compatibility in its proposal.
 - **`polish-reading-board`** — Use the existing pen.dev reference to improve board readability,
   responsive layout including 320px, available/selected/placed states, focus, and contrast.
 
 ## Remaining release checks
 
-The current milestone does not complete future sharing checks: share codec and route tests,
-plus happy-path and invalid-share browser flows. Broader browser and device verification also
-remains. See the [latest audit](../anti-slop/audit-004-2026-11-02.md) for two retained findings
-that need user-selected fixes; neither is approved for implementation.
+Sharing codec, route, consent, clipboard-fallback, and invalid-link checks are implemented.
+Broader browser and physical-device verification remains, along with CI and production
+container checks for this milestone. See the [latest audit](../anti-slop/audit-005-2026-11-02.md)
+for two retained board-polish findings; neither is approved for implementation.

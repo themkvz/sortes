@@ -1,3 +1,4 @@
+import type { Handle, RemixNode } from 'remix/component'
 import { css } from 'remix/component'
 
 import { Document } from './document.tsx'
@@ -6,20 +7,28 @@ import { ReadingBoard } from './public/reading-board.tsx'
 export function HomePage() {
   return () => (
     <Document>
-      <main mix={mainStyle}>
-        <div mix={containerStyle}>
-          <header mix={headerStyle}>
-            <div mix={brandStyle}>
-              <span aria-hidden="true" mix={brandMarkStyle}>
-                <BrandSparkIcon />
-              </span>
-              <span mix={brandNameStyle}>PSEUDO TAROT</span>
-            </div>
-          </header>
-          <ReadingBoard />
-        </div>
-      </main>
+      <PageShell>
+        <ReadingBoard />
+      </PageShell>
     </Document>
+  )
+}
+
+export function PageShell(handle: Handle<{ children?: RemixNode }>) {
+  return () => (
+    <main mix={mainStyle}>
+      <div mix={containerStyle}>
+        <header mix={headerStyle}>
+          <div mix={brandStyle}>
+            <span aria-hidden="true" mix={brandMarkStyle}>
+              <BrandSparkIcon />
+            </span>
+            <span mix={brandNameStyle}>PSEUDO TAROT</span>
+          </div>
+        </header>
+        {handle.props.children}
+      </div>
+    </main>
   )
 }
 

@@ -175,6 +175,40 @@ export const resultStyle = css({
   fontFamily: 'var(--font-body)',
   color: 'var(--color-text)',
 })
+export const resultActionsStyle = css({ display: 'flex', flexWrap: 'wrap', gap: '12px' })
+export const shareDialogStyle = css({
+  boxSizing: 'border-box',
+  width: 'min(32rem, calc(100vw - 32px))',
+  maxWidth: 'none',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--radius-panel)',
+  padding: '24px',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text)',
+  fontFamily: 'var(--font-body)',
+  '&::backdrop': { background: 'rgba(0, 0, 0, 0.72)' },
+})
+export const shareDialogActionsStyle = css({ display: 'flex', flexWrap: 'wrap', gap: '12px' })
+export const shareUrlStyle = css({
+  boxSizing: 'border-box',
+  width: '100%',
+  minWidth: 0,
+  height: '48px',
+  marginTop: '8px',
+  padding: '10px',
+  border: '1px solid var(--color-teal)',
+  borderRadius: 'var(--radius-control)',
+  background: 'var(--color-table)',
+  color: 'var(--color-text)',
+  font: 'inherit',
+  '&:focus-visible': { outline: '2px solid var(--color-focus)', outlineOffset: '2px' },
+})
+export const shareUrlOutputStyle = css({ flexBasis: '100%', minWidth: 0 })
+export const sharedPageLinkStyle = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  textDecoration: 'none',
+})
 export const deckSectionStyle = css({ display: 'flex', flexDirection: 'column', gap: '16px' })
 export const deckLabelRowStyle = css({ display: 'flex', alignItems: 'center', gap: '14px' })
 export const deckRuleStyle = css({

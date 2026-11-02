@@ -19,6 +19,10 @@ Each manual reveal adds a short artwork-only flip. Card text, focus, and the ver
 immediately, independently of motion. Reduced motion shows the front instantly; restart
 cancels any remaining effects.
 
+After completion, Share asks for confirmation before creating or copying a link. The link
+includes the question and can be read by anyone who has it. Recipients see a read-only result,
+including when JavaScript is disabled.
+
 ## Stack and pinned versions
 
 Core tooling was verified on 2026-10-30; Playwright was added on 2026-11-02:
@@ -179,15 +183,39 @@ storage, or network imports — covering:
 
 The engine powers the browser flow through `Ask` / `Surprise me`, nine generic hidden choices,
 three configured spread positions, individual reveals, a completed verdict, and `Ask again`.
-Questions and reading state stay in memory for the current page session; reloading starts
-again at idle. No authentication, cookies, browser storage, or server-side reading endpoint is
-used. Run the engine tests with `bun run test` (colocated `*.test.ts` files alongside each
-module).
+Ordinary questions and reading state stay in memory for the current page session; reloading
+`/` starts again at idle. No authentication, cookies, or browser storage is used. Explicitly
+confirmed sharing is the exception described below. Run the engine tests with `bun run test`
+(colocated `*.test.ts` files alongside each module).
+
+## Sharing
+
+Only completed readings offer Share. Cancel or Escape creates no URL and writes nothing to
+the clipboard. Share anyway creates the link locally and attempts to copy it. If clipboard
+access is unavailable or denied, the approved URL remains selectable for manual copying.
+Ask again clears the link and requires fresh confirmation for a new reading.
+
+`GET /r/:payload` serves a read-only result with a link to a new empty board. V1 is unpadded
+base64url of UTF-8 JSON with exactly `{ v: 1, d: 'developer', s: 'three-card', q, c }`.
+`q` is a nonempty trimmed NFC question of at most 160 Unicode code points; `c` is three distinct
+known card IDs in Context, Problem, Advice order. Encoded payloads are limited to 2048
+characters and validated before interpretation. Invalid or unsupported payloads return a
+controlled HTML 400 page.
+
+The URL carries public, editable data. Base64url provides no encryption or proof of origin;
+the question can remain in recipients' browser history or deployment logs. The app saves no
+reading records and adds no question/URL logging. Valid and controlled-invalid shared pages
+send no-store, no-referrer, and no-index headers.
+
+The same V1 URL reproduces the current result while deck content and the interpretation
+algorithm remain unchanged. Historical deck snapshots and long-term compatibility across
+future content changes are outside this milestone.
 
 ## Roadmap
 
 See `design/mvp-tech-design.md` and the `bootstrap-remix-foundation` change's `design.md` for
 the full milestone table. The playable reading flow, domain rules, desktop mouse dragging,
-illustrated card fronts, and individual reveal flips are implemented, with click, tap, and
-keyboard alternatives. Detailed visual polish and sharing remain future work. See the
+illustrated card fronts, individual reveal flips, and confirmed reading sharing are
+implemented, with click, tap, and keyboard alternatives. Detailed visual polish remains
+future work. See the
 [future scope notes](openspec/future-scope.md); each remaining item needs its own proposal.

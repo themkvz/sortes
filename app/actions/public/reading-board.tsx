@@ -17,7 +17,6 @@ import {
 import { canStartDrag, startCardDrag } from './drag-gesture.ts'
 import {
   askStyle,
-  backFaceStyle,
   boardStyle,
   buttonStyle,
   cardBackStyle,
@@ -31,16 +30,11 @@ import {
   errorStyle,
   faceDownStyle,
   formRowStyle,
-  frontFaceStyle,
-  frontFrameStyle,
-  frontImageStyle,
   headingStyle,
   inputStyle,
   labelStyle,
   mutedMonoStyle,
   mutedSmallStyle,
-  resultStyle,
-  revealedStyle,
   selectedStyle,
   slotLabelStyle,
   slotWrapStyle,
@@ -48,8 +42,9 @@ import {
   spreadRowStyle,
   spreadSectionStyle,
 } from './reading-board.styles.ts'
-
-const REVEAL_FLIP_DURATION_MS = 240
+import { ReadingResult } from './reading-result.tsx'
+import { RevealedCard } from './revealed-card.tsx'
+import { ShareReading } from './share-reading.tsx'
 
 export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(handle: Handle) {
   let board = initialBoard()
@@ -232,76 +227,7 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                 >
                   <span mix={slotLabelStyle}>{position.label.toUpperCase()}</span>
                   {card ? (
-                    <article mix={revealedStyle}>
-                      <div
-                        data-front-frame
-                        mix={[
-                          frontFrameStyle,
-                          ref((frame, signal) => {
-                            const front = frame.querySelector<HTMLElement>('[data-front-face]')
-                            const back = frame.querySelector<HTMLElement>('[data-back-face]')
-                            const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
-                            if (
-                              !front ||
-                              !back ||
-                              motion.matches ||
-                              !front.animate ||
-                              !back.animate
-                            )
-                              return
-                            let frontAnimation: Animation | undefined
-                            let backAnimation: Animation | undefined
-                            try {
-                              frontAnimation = front.animate(
-                                [{ transform: 'rotateY(180deg)' }, { transform: 'rotateY(0deg)' }],
-                                { duration: REVEAL_FLIP_DURATION_MS, easing: 'ease-in-out' },
-                              )
-                              backAnimation = back.animate(
-                                [{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-180deg)' }],
-                                { duration: REVEAL_FLIP_DURATION_MS, easing: 'ease-in-out' },
-                              )
-                            } catch {
-                              frontAnimation?.cancel()
-                              backAnimation?.cancel()
-                              return
-                            }
-                            const settle = () => {
-                              frontAnimation?.cancel()
-                              backAnimation?.cancel()
-                            }
-                            motion.addEventListener(
-                              'change',
-                              (event) => {
-                                if (event.matches) settle()
-                              },
-                              { signal },
-                            )
-                            signal.addEventListener('abort', settle, { once: true })
-                          }),
-                        ]}
-                      >
-                        <div aria-hidden="true" data-back-face mix={backFaceStyle} />
-                        <img
-                          src={`/cards/developer/fronts/${card.cardId}.webp`}
-                          alt=""
-                          aria-hidden="true"
-                          data-front-art
-                          data-front-face
-                          width="492"
-                          height="700"
-                          mix={[
-                            frontFaceStyle,
-                            frontImageStyle,
-                            on('error', (event) => {
-                              event.currentTarget.hidden = true
-                            }),
-                          ]}
-                        />
-                      </div>
-                      <strong>{card.cardName}</strong>
-                      <span>{card.shortDescription}</span>
-                      <p>{card.meaning}</p>
-                    </article>
+                    <RevealedCard card={card} />
                   ) : placement ? (
                     <button
                       type="button"
@@ -363,16 +289,18 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
           </section>
         )}
         {completedState && (
-          <section aria-label="Reading result" mix={resultStyle}>
-            <p>{state.question}</p>
-            <h2 tabIndex={-1} data-verdict>
-              Verdict
-            </h2>
-            <p>{completedState.interpretation.verdict}</p>
-            <button type="button" mix={[buttonStyle, on('click', askAgain)]}>
-              Ask again
-            </button>
-          </section>
+          <ReadingResult
+            question={state.question}
+            interpretation={completedState.interpretation}
+            actions={
+              <>
+                <ShareReading reading={completedState} />
+                <button type="button" mix={[buttonStyle, on('click', askAgain)]}>
+                  Ask again
+                </button>
+              </>
+            }
+          />
         )}
         {gesture?.state.active && (
           <div
