@@ -2,7 +2,7 @@ import type { Handle, RemixNode } from 'remix/component'
 import { css } from 'remix/component'
 import { ImportMap } from 'remix/component/server'
 
-import { scriptEntry } from '../assets.ts'
+import { displayFontPreload, fontStylesheets, scriptEntry } from '../assets.ts'
 
 export interface DocumentProps {
   children?: RemixNode
@@ -22,12 +22,16 @@ export function Document(handle: Handle<DocumentProps>) {
           <meta name="color-scheme" content="dark" />
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
           <title>{title}</title>
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
           <link
-            rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,500&family=Funnel+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+            rel="preload"
+            href={displayFontPreload}
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
           />
+          {fontStylesheets.map((stylesheetHref) => (
+            <link key={stylesheetHref} rel="stylesheet" href={stylesheetHref} />
+          ))}
           <ImportMap value={importMap} />
           {preloads.map((preloadHref) => (
             <link key={preloadHref} rel="modulepreload" href={preloadHref} />
@@ -49,8 +53,8 @@ export function Document(handle: Handle<DocumentProps>) {
             '--color-card-ink': '#272922',
             '--color-card-back': '#17352E',
             '--color-selected-surface': '#1D3831',
-            '--font-display': "'Newsreader', serif",
-            '--font-body': "'Funnel Sans', system-ui, sans-serif",
+            '--font-display': "'Newsreader Variable', serif",
+            '--font-body': "'Funnel Sans Variable', system-ui, sans-serif",
             '--font-mono': "'IBM Plex Mono', monospace",
             '--radius-control': '6px',
             '--radius-card': '12px',
