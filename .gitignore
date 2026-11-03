@@ -3,3 +3,10 @@ node_modules/
 *.log
 coverage/
 anti-slop/
+
+# Playwright output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.playwright-cli/
