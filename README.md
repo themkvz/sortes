@@ -224,6 +224,9 @@ See `design/mvp-tech-design.md` and the `bootstrap-remix-foundation` change's `d
 the full milestone table. The playable reading flow, domain rules, desktop mouse dragging,
 illustrated card fronts, individual reveal flips, and confirmed reading sharing are
 implemented, with click, tap, and keyboard alternatives. Board composition, control contrast,
-and phone interpretation readability are also implemented. See the
-[future scope notes](openspec/future-scope.md) for remaining release checks; no further feature
-changes are currently listed.
+and phone interpretation readability are also implemented. Completed changes are in
+`openspec/changes/archive/`; new features need a new OpenSpec proposal.
+
+Remaining release checks: broader browser and physical-device verification, CI, and the
+production container check. See the [latest audit](anti-slop/audit-007-2026-11-03.md) for
+reference adaptations and coverage limits.
