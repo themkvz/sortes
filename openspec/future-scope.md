@@ -31,14 +31,21 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
   See the [change](changes/archive/2026-11-02-add-reading-sharing/proposal.md) and
   [implementation check](../anti-slop/audit-005-2026-11-02.md).
 
+- **`polish-reading-board`**: The desktop deck follows the reference's compact stagger;
+  phones keep three spread cards with full-width interpretation blocks below. Control states,
+  focus, hit areas, and the question field boundary are clearer. Live and shared results use
+  the same readable text presentation. The two retained contrast/readability findings are
+  closed by measured and browser-checked evidence. See the
+  [change](changes/polish-reading-board/proposal.md) and
+  [measured design check](../anti-slop/audit-007-2026-11-03.md).
+
 ## Suggested changes
 
-- **`polish-reading-board`** — Use the existing pen.dev reference to improve board readability,
-  responsive layout including 320px, available/selected/placed states, focus, and contrast.
+No further feature changes are currently listed. Remaining release checks are below.
 
 ## Remaining release checks
 
 Sharing codec, route, consent, clipboard-fallback, and invalid-link checks are implemented.
 Broader browser and physical-device verification remains, along with CI and production
-container checks for this milestone. See the [latest audit](../anti-slop/audit-005-2026-11-02.md)
-for two retained board-polish findings; neither is approved for implementation.
+container checks for this milestone. See the [latest audit](../anti-slop/audit-007-2026-11-03.md)
+for the closed board-polish findings, reference adaptations, and coverage limits.

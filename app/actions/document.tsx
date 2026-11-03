@@ -26,7 +26,7 @@ export function Document(handle: Handle<DocumentProps>) {
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
           <link
             rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,500&family=Funnel+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,500&family=Funnel+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
           />
           <ImportMap value={importMap} />
           {preloads.map((preloadHref) => (
@@ -39,6 +39,7 @@ export function Document(handle: Handle<DocumentProps>) {
             '--color-table': '#0A0D0C',
             '--color-surface': '#141815',
             '--color-border': '#333B35',
+            '--color-control-border': '#626861',
             '--color-text': '#F3EDDF',
             '--color-text-muted': '#AAA69B',
             '--color-amber': '#F1A64B',
@@ -55,7 +56,8 @@ export function Document(handle: Handle<DocumentProps>) {
             '--radius-card': '12px',
             '--radius-panel': '16px',
             margin: 0,
-            background: 'var(--color-table)',
+            background:
+              'radial-gradient(115% 105% at 50% 42%, #18231D 0%, #0A0D0C 100%), var(--color-table)',
             color: 'var(--color-text)',
             fontFamily: 'var(--font-body)',
             '@media (prefers-reduced-motion: reduce)': {

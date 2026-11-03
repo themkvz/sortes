@@ -10,7 +10,7 @@ position. A valid drop is final; an invalid drop leaves the reading unchanged. E
 the drag and clears selection. Click, tap, and keyboard select-then-place controls remain
 available, and touch keeps normal scrolling.
 
-Each revealed card shows its own engraved illustration beside its name, description, and
+Each revealed card shows its own engraved illustration above its name, description, and
 position meaning. Images load independently of reveals and the verdict; failed images leave
 the text and controls usable. The [approved artwork and prompt record](design/card-fronts/README.md)
 cover all 16 fronts, with optimized local WebP files used by the app.
@@ -22,6 +22,13 @@ cancels any remaining effects.
 After completion, Share asks for confirmation before creating or copying a link. The link
 includes the question and can be read by anyone who has it. Recipients see a read-only result,
 including when JavaScript is disabled.
+
+The desktop deck uses nine compact 82×116 cards in a shallow stagger. Phones use a compact
+3×3 deck and keep the three spread cards side by side, with full-width, position-labeled
+interpretations below. Interpretation text is 16px with 24px line height; selection, placement,
+reveal availability, and focus have distinct cues. The question field has a visible boundary
+before focus. See the [measured pen.dev comparison](anti-slop/audit-007-2026-11-03.md) for reference
+adaptations and verification.
 
 ## Stack and pinned versions
 
@@ -216,6 +223,7 @@ future content changes are outside this milestone.
 See `design/mvp-tech-design.md` and the `bootstrap-remix-foundation` change's `design.md` for
 the full milestone table. The playable reading flow, domain rules, desktop mouse dragging,
 illustrated card fronts, individual reveal flips, and confirmed reading sharing are
-implemented, with click, tap, and keyboard alternatives. Detailed visual polish remains
-future work. See the
-[future scope notes](openspec/future-scope.md); each remaining item needs its own proposal.
+implemented, with click, tap, and keyboard alternatives. Board composition, control contrast,
+and phone interpretation readability are also implemented. See the
+[future scope notes](openspec/future-scope.md) for remaining release checks; no further feature
+changes are currently listed.

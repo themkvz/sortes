@@ -134,10 +134,32 @@ async function centerOf(target: Page, selector: string) {
   return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
 }
 
+async function cardColumnAlignment(target: Page) {
+  return target.locator('[data-card-details]').evaluateAll((details) =>
+    details.map((detail) => {
+      const positionId = detail.getAttribute('data-card-position')
+      const slot = [...document.querySelectorAll('[data-position]')].find(
+        (candidate) => candidate.getAttribute('data-position') === positionId,
+      )
+      if (!slot) throw new Error(`No visual slot for card details at ${positionId}`)
+      const detailBounds = detail.getBoundingClientRect()
+      const slotBounds = slot.getBoundingClientRect()
+      return {
+        positionId,
+        detailX: detailBounds.x,
+        detailY: detailBounds.y,
+        slotX: slotBounds.x,
+      }
+    }),
+  )
+}
+
 async function verdictFor(target: Page, question: string) {
-  const faces = await target.locator('[aria-label="Your spread"] article strong').allTextContents()
+  const faces = await target
+    .locator('[aria-label="Your spread"] [data-card-details]')
+    .evaluateAll((details) => details.map((detail) => detail.getAttribute('data-card-id')))
   const cards = positions.map((_position, index) => {
-    const card = developerDeck.cards.find((candidate) => candidate.name === faces[index])
+    const card = developerDeck.cards.find((candidate) => candidate.id === faces[index])
     if (!card) throw new Error(`No deck card matches rendered face: ${faces[index]}`)
     return card
   })
@@ -219,6 +241,90 @@ describe('reading experience', () => {
     },
   )
 
+  test('keeps the deck compact, ordered, and reachable at layout boundaries', async (t) => {
+    const { page } = await setup(t)
+    page.setDefaultTimeout(2_000)
+    await start(page, 'deck layout boundaries')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.mouse.move(0, 0)
+    const firstChoice = page.locator('[data-choice="0"]')
+    const beforeHover = await firstChoice.boundingBox()
+    if (!beforeHover) throw new Error('The first desktop choice is not visible')
+    await firstChoice.hover()
+    const duringHover = await firstChoice.boundingBox()
+    if (!duringHover) throw new Error('The first desktop choice disappeared on hover')
+    expect(Math.abs(duringHover.x - beforeHover.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(duringHover.y - beforeHover.y)).toBeLessThanOrEqual(1)
+    expect(Math.abs(duringHover.width - beforeHover.width)).toBeLessThanOrEqual(1)
+    expect(Math.abs(duringHover.height - beforeHover.height)).toBeLessThanOrEqual(1)
+    expect(Math.abs(duringHover.height / duringHover.width - 116 / 82)).toBeLessThan(0.05)
+
+    for (const width of [1440, 1024, 1023, 768, 767, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 })
+      const boxes = await page.locator('[data-choice]').evaluateAll((choices) =>
+        choices.map((choice) => {
+          const { x, y, width, height } = choice.getBoundingClientRect()
+          return { tagName: choice.tagName, x, y, width, height }
+        }),
+      )
+      expect(boxes).toHaveLength(9)
+      expect(boxes.every(({ tagName }) => tagName === 'BUTTON')).toBe(true)
+      expect(boxes.every(({ width: itemWidth, height }) => itemWidth >= 48 && height >= 48)).toBe(
+        true,
+      )
+      for (let index = 0; index < boxes.length; index++) {
+        for (const other of boxes.slice(index + 1)) {
+          expect(
+            boxes[index].x + boxes[index].width <= other.x ||
+              other.x + other.width <= boxes[index].x ||
+              boxes[index].y + boxes[index].height <= other.y ||
+              other.y + other.height <= boxes[index].y,
+          ).toBe(true)
+        }
+      }
+      const cardHeight = boxes.reduce((total, box) => total + box.height, 0) / boxes.length
+      if (width < 1024) {
+        const rowTops: number[] = []
+        for (const { y } of [...boxes].sort((a, b) => a.y - b.y)) {
+          if (rowTops.every((top) => Math.abs(top - y) > cardHeight / 2)) rowTops.push(y)
+        }
+        expect(rowTops).toHaveLength(3)
+      } else {
+        const tops = boxes.map(({ y }) => y)
+        expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(cardHeight / 2)
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+    }
+
+    const question = page.getByRole('textbox', { name: 'YOUR QUESTION' })
+    await question.focus()
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Shift+Tab')
+    const focus = await question.evaluate((input) => {
+      const style = getComputedStyle(input)
+      const parse = (value: string) => value.match(/[\d.]+/g)?.map(Number) ?? []
+      const luminance = (color: string) => {
+        const channels = parse(color)
+          .slice(0, 3)
+          .map((channel) => {
+            const linear = channel / 255
+            return linear <= 0.04045 ? linear / 12.92 : ((linear + 0.055) / 1.055) ** 2.4
+          })
+        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+      }
+      const border = luminance(style.borderTopColor)
+      const background = luminance(style.backgroundColor)
+      return {
+        visible: input.matches(':focus-visible'),
+        contrast: (Math.max(border, background) + 0.05) / (Math.min(border, background) + 0.05),
+      }
+    })
+    expect(focus.visible).toBe(true)
+    expect(focus.contrast).toBeGreaterThanOrEqual(3)
+  })
+
   test(
     'rejects invalid drops and Escape cancellation while keeping later click and keyboard actions usable',
     { timeout: 30_000 },
@@ -250,7 +356,9 @@ describe('reading experience', () => {
       await dragChoice(page, 4, first.x, first.y)
       expect(await page.locator('[data-drop-target]').count()).toBe(1)
       await page.mouse.move(8, 8, { steps: 3 })
-      expect(await page.locator('[data-position] article, [data-reveal]').count()).toBe(0)
+      expect(await page.locator('[data-position] [data-card-details], [data-reveal]').count()).toBe(
+        0,
+      )
       await page.mouse.up()
       expect(await choices.nth(1).getAttribute('aria-pressed')).toBe('true')
       expect(await page.locator('[data-drag-preview]').count()).toBe(0)
@@ -354,6 +462,9 @@ describe('reading experience', () => {
       await start(page, 'placement flow')
       const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
       await choices.nth(2).click()
+      expect(await choices.nth(2).getAttribute('data-selected')).not.toBeNull()
+      expect(await choices.nth(2).locator('[data-badge="selected"]').count()).toBe(1)
+      expect(await choices.nth(3).locator('*').count()).toBe(0)
       await choices.nth(5).click()
       expect(await choices.nth(2).isEnabled()).toBe(true)
       expect(await choices.nth(5).getAttribute('aria-pressed')).toBe('true')
@@ -379,7 +490,25 @@ describe('reading experience', () => {
         }
         await slot.focus()
         await page.keyboard.press('Enter')
-        if (step === 0) expect(await choices.nth(5).isDisabled()).toBe(true)
+        if (step === 0) {
+          expect(await choices.nth(5).isDisabled()).toBe(true)
+          expect(await choices.nth(5).getAttribute('data-picked')).not.toBeNull()
+          expect(await choices.nth(5).locator('[data-badge="placed"]').count()).toBe(1)
+          expect(
+            await page.locator('[data-reveal]').first().locator('[data-badge="placed"]').count(),
+          ).toBe(1)
+          expect(await page.locator('[data-reveal]').first().isDisabled()).toBe(true)
+        }
+        if (step === 2) {
+          expect(
+            await page
+              .locator('[data-reveal]')
+              .first()
+              .locator('[data-badge="revealable"]')
+              .count(),
+          ).toBe(1)
+          expect(await page.locator('[data-reveal]:not(:disabled)').count()).toBe(3)
+        }
         if (step < 2) {
           await page.waitForFunction(
             (index) => document.activeElement?.getAttribute('data-choice') === String(index),
@@ -457,6 +586,18 @@ describe('reading experience', () => {
         expect(exposed).toHaveLength(1)
         const card = exposed[0]
         revealed.set(order[index].id, card)
+        const details = page.locator(`[data-card-details][data-card-position="${order[index].id}"]`)
+        await details.waitFor()
+        expect(await details.getAttribute('data-card-id')).toBe(card.id)
+        const heading = details.getByRole('heading')
+        expect(await heading.count()).toBe(1)
+        expect(await heading.textContent()).toContain(card.name)
+        expect(await heading.textContent()).toContain(order[index].label)
+        expect(await page.getByText(card.shortDescription, { exact: true }).count()).toBe(1)
+        expect(
+          await page.getByText(card.meanings[order[index].id].text, { exact: true }).count(),
+        ).toBe(1)
+        expect(await page.locator('[data-card-details]').count()).toBe(index + 1)
         const front = page.locator(`[data-front-art][src$="/${card.id}.webp"]`)
         await front.waitFor({ state: 'visible' })
         expect(
@@ -496,6 +637,54 @@ describe('reading experience', () => {
           ).toBe(true)
         }
         if (index === 0) {
+          await page.evaluate(() => {
+            Object.defineProperty(window, '__resizeFront', {
+              value: document.querySelector('[data-front-art]'),
+            })
+          })
+          await page.setViewportSize({ width: 767, height: 900 })
+          expect(await page.locator('[data-card-details]').count()).toBe(1)
+          expect(
+            await page.evaluate(
+              () =>
+                (window as typeof window & { __resizeFront: Element }).__resizeFront ===
+                document.querySelector('[data-front-art]'),
+            ),
+          ).toBe(true)
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+          ).toBe(true)
+          expect(
+            await page.evaluate(
+              () =>
+                (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
+                  .length,
+            ),
+          ).toBe(2)
+          await page.setViewportSize({ width: 1024, height: 900 })
+          expect(await page.locator('[data-card-details]').count()).toBe(1)
+          expect(
+            await page.evaluate(
+              () =>
+                (window as typeof window & { __resizeFront: Element }).__resizeFront ===
+                document.querySelector('[data-front-art]'),
+            ),
+          ).toBe(true)
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+          ).toBe(true)
+          const partialAlignment = await cardColumnAlignment(page)
+          expect(partialAlignment).toHaveLength(1)
+          expect(
+            Math.abs(partialAlignment[0].detailX - partialAlignment[0].slotX),
+          ).toBeLessThanOrEqual(1)
+          expect(
+            await page.evaluate(
+              () =>
+                (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
+                  .length,
+            ),
+          ).toBe(2)
           await page.emulateMedia({ reducedMotion: 'reduce' })
           await page.waitForFunction(() =>
             (
@@ -513,6 +702,7 @@ describe('reading experience', () => {
         }
         expect(after).toContain(card.shortDescription)
         expect(after).toContain(card.meanings[order[index].id].text)
+        expect(await details.textContent()).toContain(order[index].label)
         if (index < 2) {
           expect(await page.locator('[data-verdict]').count()).toBe(0)
           const domText = await page.locator('body').textContent()
@@ -562,9 +752,25 @@ describe('reading experience', () => {
         'privacy sentinel question',
       )
       const faces = await page
-        .locator('[aria-label="Your spread"] article')
-        .evaluateAll((articles) => articles.map((article) => article.textContent ?? ''))
+        .locator('[aria-label="Your spread"] [data-card-details]')
+        .evaluateAll((details) => details.map((detail) => detail.textContent ?? ''))
       expect(faces).toHaveLength(positions.length)
+      expect(
+        await page
+          .locator('[aria-label="Your spread"] [data-card-details]')
+          .evaluateAll((details) =>
+            details.map((detail) => detail.getAttribute('data-card-position')),
+          ),
+      ).toEqual(positions.map((position) => position.id))
+      const finalAlignment = await cardColumnAlignment(page)
+      expect(finalAlignment).toHaveLength(positions.length)
+      expect(
+        Math.max(...finalAlignment.map(({ detailY }) => detailY)) -
+          Math.min(...finalAlignment.map(({ detailY }) => detailY)),
+      ).toBeLessThanOrEqual(1)
+      for (const { detailX, slotX } of finalAlignment) {
+        expect(Math.abs(detailX - slotX)).toBeLessThanOrEqual(1)
+      }
       const frontIds = await page
         .locator('[aria-label="Your spread"] img[data-front-art]')
         .evaluateAll((images) =>
@@ -727,6 +933,20 @@ describe('reading experience', () => {
     expect(response?.status()).toBe(200)
     await noJs.page.getByText('shared server rendered question').waitFor()
     expect(await noJs.page.locator('[data-position]').count()).toBe(3)
+    expect(
+      await noJs.page
+        .locator('[aria-label="Your spread"] [data-card-details]')
+        .evaluateAll((details) =>
+          details.map((detail) => detail.getAttribute('data-card-position')),
+        ),
+    ).toEqual(positions.map((position) => position.id))
+    expect(
+      await noJs.page
+        .locator('[aria-label="Your spread"] [data-card-details]')
+        .evaluateAll((details) =>
+          details.every((detail) => detail.querySelector('h1, h2, h3, h4, h5, h6')),
+        ),
+    ).toBe(true)
     expect(await noJs.page.locator('[data-front-art]').count()).toBe(3)
     expect(await noJs.page.getByRole('link', { name: 'Start a new reading' }).count()).toBe(1)
     expect(await noJs.page.getByRole('button', { name: 'Share' }).count()).toBe(0)
@@ -778,6 +998,27 @@ describe('reading experience', () => {
         await page.setViewportSize({ width, height: 900 })
         await complete(page, `acceptance-question-keyboard-${width}`, 'keyboard')
         await verdictFor(page, `acceptance-question-keyboard-${width}`)
+        const readableBlocks = await page.locator('[data-card-details]').evaluateAll((details) =>
+          details.map((detail) => {
+            const style = getComputedStyle(detail.querySelector('p') ?? detail)
+            const width = detail.getBoundingClientRect().width
+            const availableWidth = detail.parentElement?.getBoundingClientRect().width ?? 0
+            return {
+              fontSize: Number.parseFloat(style.fontSize),
+              lineHeight: Number.parseFloat(style.lineHeight) / Number.parseFloat(style.fontSize),
+              widthRatio: width / availableWidth,
+            }
+          }),
+        )
+        expect(readableBlocks).toHaveLength(3)
+        if (width < 768) {
+          expect(
+            readableBlocks.every(
+              ({ fontSize, lineHeight, widthRatio }) =>
+                fontSize >= 16 && lineHeight >= 1.45 && widthRatio >= 0.8,
+            ),
+          ).toBe(true)
+        }
         expect(
           await page
             .locator('[data-front-frame]')
@@ -901,7 +1142,9 @@ describe('reading experience', () => {
           ),
       ).toBe(true)
       expect(
-        await page.locator('[aria-label="Your spread"] article strong').allTextContents(),
+        await page
+          .locator('[aria-label="Your spread"] [data-card-details] :is(h1, h2, h3, h4, h5, h6)')
+          .allTextContents(),
       ).toHaveLength(3)
       await page.getByRole('button', { name: 'Ask again' }).click()
       await page.waitForFunction(() => document.activeElement?.matches('input'))
