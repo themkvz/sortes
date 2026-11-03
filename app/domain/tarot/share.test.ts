@@ -29,7 +29,7 @@ describe('shared reading codec', () => {
       ['advice', 'mvp'],
     ])
     expect(result.value.interpretation.verdict).toBe(
-      'The setup: old decisions are still doing useful work. The snag: the architecture keeps improving while the finish line moves. Your next move: cut one requirement and finish the remaining loop.',
+      'The setup: old decisions are still doing useful work. The snag: the code keeps getting cleaner while the release keeps slipping. Your next move: cut one requirement and finish the remaining loop.',
     )
     expect(result.value.interpretation).toEqual(
       interpret(developerDeck, {

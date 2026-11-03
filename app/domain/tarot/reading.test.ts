@@ -319,7 +319,7 @@ describe('verdict', () => {
   }
 
   const EXPECTED_VERDICT =
-    'The setup: old decisions are still doing useful work. The snag: the architecture keeps improving while the finish line moves. Your next move: cut one requirement and finish the remaining loop.'
+    'The setup: old decisions are still doing useful work. The snag: the code keeps getting cleaner while the release keeps slipping. Your next move: cut one requirement and finish the remaining loop.'
 
   // A deck holding only the paired cards, in placement order, makes the hidden choices known.
   function interpretationFor(
@@ -366,11 +366,11 @@ describe('verdict', () => {
     const mvpCard = result.cards.find((c) => c.cardId === 'mvp')
     if (!mvpCard) throw new Error('Expected matching card')
     expect(mvpCard.positionId).toBe('context')
-    expect(mvpCard.meaning).toBe('A small working thing has survived contact with reality.')
+    expect(mvpCard.meaning).toBe('A small thing that works has met real users.')
   })
 
   test('both templates compose without leftover placeholders or doubled punctuation', () => {
-    for (const prefix of ['The setup:', 'The cards remember that']) {
+    for (const prefix of ['The setup:', 'The cards show that']) {
       let found = false
       for (let i = 0; i < 200 && !found; i++) {
         const { verdict } = interpretationFor(`${GOLDEN_QUESTION} ${i}`, GOLDEN_PAIRS)
