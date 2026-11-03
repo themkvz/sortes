@@ -179,14 +179,16 @@ files — see `.dockerignore`).
 `app/domain/tarot/` contains a pure, framework-independent domain module — no Node-only, UI,
 storage, or network imports — covering:
 
-- `deck.ts` / `decks/developer.ts`: content schema, structural/cross-field validation, and the
-  authored 16-card Developer Tarot deck (context/problem/advice positions, 5 surprise prompts,
-  2 verdict templates).
-- `reading.ts`: question normalization (trim + NFC, at most 160 Unicode code points), the
-  session lifecycle (`idle → choosing → ready → revealing → complete`, plus `reset`), immutable
-  card placement, individual reveal gating, and deterministic interpretation (a completed
-  reading always produces the same position meanings and verdict, independent of pick/reveal
-  order — verified against a pinned golden vector).
+- `deck.ts` / `decks/developer.ts`: deck types and the authored 16-card Developer Tarot deck
+  as a typed literal (context/problem/advice positions, 5 surprise prompts, 2 verdict
+  templates). Its invariants are checked by `decks/developer.test.ts`, not at runtime.
+- `reading.ts`: question normalization (trim + NFC, at most 160 Unicode code points) and pure
+  transitions over the `idle → choosing → ready → revealing → complete` state union (`idle`,
+  `start`, `place`, `reveal`; an invalid move returns the same state). It also covers
+  individual reveal gating and deterministic interpretation: a completed reading always
+  produces the same position meanings and verdict, independent of pick/reveal order (verified
+  against a pinned golden vector). `Ask again` starts from a fresh `idle()` state.
+- `share.ts`: the V1 shared-reading codec described in [Sharing](#sharing).
 
 The engine powers the browser flow through `Ask` / `Surprise me`, nine generic hidden choices,
 three configured spread positions, individual reveals, a completed verdict, and `Ask again`.
