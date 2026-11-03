@@ -68,7 +68,7 @@ The experience SHALL present nine stable, preassigned hidden choices as individu
 - **THEN** the current placements and remaining choices stay unchanged
 
 ### Requirement: Gate reveals until placement is complete
-The experience SHALL lock further choice and placement actions after the third distinct card is placed. Only then SHALL each placed card become independently revealable. Before its own reveal, a placed card SHALL expose only its configured position label and generic hidden-card description; its name, short description, and position meaning SHALL not appear in rendered content or accessibility labels. The verdict SHALL remain absent from rendered content and accessibility labels until the third reveal. Revealing a card SHALL expose only that card's name, short description, and meaning for its configured position. On the third reveal, the completed result SHALL contain the original normalized question, all three revealed cards and their position-specific meanings, and exactly one deterministic verdict. The result SHALL follow configured spread order regardless of placement or reveal order. The experience SHALL not provide a reveal-all action or a Share placeholder in this milestone. Card names and meanings are public deck content and are not required to be secret from inspection of client code.
+The experience SHALL lock further choice and placement actions after the third distinct card is placed. Only then SHALL each placed card become independently revealable. Before its own reveal, a placed card SHALL expose only its configured position label and generic hidden-card description; its name, short description, and position meaning SHALL not appear in rendered content or accessibility labels. The verdict SHALL remain absent from rendered content and accessibility labels until the third reveal. Revealing a card SHALL expose only that card's name, short description, and meaning for its configured position. On the third reveal, the completed result SHALL contain the original normalized question, all three revealed cards and their position-specific meanings, and exactly one deterministic verdict. The result SHALL follow configured spread order regardless of placement or reveal order. While any placed card is face-down, a `Reveal all` action SHALL reveal the remaining cards one after another in spread order, through the same individual reveal as a manual reveal, with the same focus, status, and verdict behavior; it SHALL NOT be offered before all three cards are placed. The experience SHALL not provide a Share placeholder in this milestone. Card names and meanings are public deck content and are not required to be secret from inspection of client code.
 
 #### Scenario: Third placement enables reveal
 - **WHEN** the third distinct card is placed
@@ -87,7 +87,6 @@ The experience SHALL lock further choice and placement actions after the third d
 - **WHEN** the final unrevealed placed card is revealed
 - **THEN** the completed result appears immediately in configured spread order
 - **AND** it contains the original normalized question, all three revealed cards and position-specific meanings, and exactly one deterministic verdict
-- **AND** no reveal-all action is available
 - **AND** no Share placeholder is shown
 
 #### Scenario: Keep verdict hidden until completion
@@ -278,7 +277,7 @@ Card names, short descriptions, and position-specific meanings SHALL remain sele
 
 ### Requirement: Animate each manual card reveal independently
 
-After all three positions are filled, manually revealing a placed card SHALL give that card one short flip from the shared back to its own front when motion is allowed. The flip SHALL affect only the artwork area; card names, descriptions, meanings, position labels, and controls SHALL remain readable without rotating or becoming mirrored. A reveal SHALL NOT animate or disclose another unrevealed card. Placement, ordinary board updates, and completion of the reading SHALL NOT replay a previously revealed card's flip. No reveal-all action SHALL be added.
+After all three positions are filled, manually revealing a placed card SHALL give that card one short flip from the shared back to its own front when motion is allowed. The flip SHALL affect only the artwork area; card names, descriptions, meanings, position labels, and controls SHALL remain readable without rotating or becoming mirrored. A reveal SHALL NOT animate or disclose another unrevealed card. Placement, ordinary board updates, and completion of the reading SHALL NOT replay a previously revealed card's flip. `Reveal all` SHALL flip each remaining card individually, staggered so no flip replays another card.
 
 #### Scenario: Flip only the activated card
 
@@ -328,7 +327,7 @@ Revealing a card SHALL commit its revealed state, accessible text, live status, 
 
 ### Requirement: Preserve the reference deck composition
 
-At desktop widths that fit the reference deck, the nine face-down choices SHALL appear as compact portrait cards in a centered row with the reference's shallow vertical stagger and spacing, without stretching to fill wide tracks. At phone and intermediate widths they SHALL form a compact three-by-three arrangement with distinct, non-overlapping hit areas. The approved shared-back artwork SHALL retain its proportions without cropping. The idle deck SHALL appear inactive; during choosing, the nine identities and ordinal positions SHALL stay stable as cards are picked. Visual offsets SHALL NOT change document order, obscure focus, expose card identities, cause horizontal overflow, or prevent a primary-mouse drag from starting on its visible source.
+At desktop widths that fit the reference deck, the nine face-down choices SHALL appear as compact portrait cards in a centered row with the reference's shallow vertical stagger and spacing, without stretching to fill wide tracks. At phone and intermediate widths they SHALL form a compact three-by-three arrangement with distinct, non-overlapping hit areas. The approved shared-back artwork SHALL retain its proportions without cropping. The idle deck SHALL appear inactive; during choosing, the nine identities and ordinal labels SHALL stay stable; a picked choice SHALL leave the deck after a short exit, and the remaining choices SHALL close the gap without changing their order. Visual offsets SHALL NOT change document order, obscure focus, expose card identities, cause horizontal overflow, or prevent a primary-mouse drag from starting on its visible source.
 
 #### Scenario: Show the desktop deck
 
@@ -344,13 +343,13 @@ At desktop widths that fit the reference deck, the nine face-down choices SHALL 
 
 ### Requirement: Distinguish card interaction states
 
-Available, pending selection, already placed, eligible empty target, and revealable states SHALL have visible cues consistent with the pen.dev card-state reference and native accessible semantics. Pending selection SHALL have a shape or text cue in addition to color. A picked choice SHALL remain in its original deck position, visibly marked as placed and unavailable without revealing its identity; inactive idle choices SHALL NOT be labeled as already placed. Eligible empty targets SHALL remain distinguishable from occupied or inactive targets. Placed cards SHALL remain face-down and locked until all three are placed; only then SHALL a visible generic reveal cue appear. Keyboard focus SHALL remain distinct from selection, and hover styling SHALL apply only to available controls on hover-capable input. During a drag, the eligible target under the pointer SHALL show the same valid-target cue as selection-based placement, and cancellation behavior SHALL remain intact.
+Available, pending selection, already placed, eligible empty target, and revealable states SHALL have visible cues consistent with the pen.dev card-state reference and native accessible semantics. Pending selection SHALL have a shape or text cue in addition to color. A picked choice SHALL become unavailable and leave the deck without revealing its identity; inactive idle choices SHALL NOT be labeled as already placed. Eligible empty targets SHALL remain distinguishable from occupied or inactive targets. Placed cards SHALL remain face-down and locked until all three are placed; only then SHALL a visible generic reveal cue appear. Keyboard focus SHALL remain distinct from selection, and hover styling SHALL apply only to available controls on hover-capable input. During a drag, the eligible target under the pointer SHALL show the same valid-target cue as selection-based placement, and cancellation behavior SHALL remain intact.
 
 #### Scenario: Select and place a hidden card
 
 - **WHEN** a visitor selects an available choice and places it into an empty position
 - **THEN** pending selection and eligible destinations are visibly identified without card identity disclosure
-- **AND** the picked choice stays at its ordinal position with a placed/unavailable cue, while other choices stay available
+- **AND** the picked choice leaves the deck, while other choices keep their order and stay available
 
 #### Scenario: Distinguish reveal availability from placement
 

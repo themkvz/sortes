@@ -4,8 +4,11 @@ import { on, ref } from 'remix/component'
 import type { SharedReading } from '../../domain/tarot/share.ts'
 import { encodeSharedReading } from '../../domain/tarot/share.ts'
 import { routes } from '../../routes.ts'
+import { Icon } from './icons.tsx'
 import {
   buttonStyle,
+  iconButtonStyle,
+  secondaryButtonStyle,
   shareDialogActionsStyle,
   shareDialogStyle,
   shareUrlOutputStyle,
@@ -25,8 +28,9 @@ export function ShareReading(handle: Handle<{ reading: SharedReading }>) {
       <button
         id={`${handle.id}-share-trigger`}
         type="button"
-        mix={[buttonStyle, on('click', () => dialog?.showModal())]}
+        mix={[buttonStyle, iconButtonStyle, on('click', () => dialog?.showModal())]}
       >
+        <Icon name="link-2" size={18} />
         Share
       </button>
       <dialog
@@ -43,7 +47,10 @@ export function ShareReading(handle: Handle<{ reading: SharedReading }>) {
         <h2 id={`${handle.id}-title`}>Share this reading?</h2>
         <p id={`${handle.id}-warning`}>{PRIVACY_WARNING}</p>
         <div mix={shareDialogActionsStyle}>
-          <button type="button" mix={[buttonStyle, on('click', () => dialog?.close())]}>
+          <button
+            type="button"
+            mix={[buttonStyle, secondaryButtonStyle, on('click', () => dialog?.close())]}
+          >
             Cancel
           </button>
           <button

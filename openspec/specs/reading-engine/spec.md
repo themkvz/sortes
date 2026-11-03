@@ -60,7 +60,7 @@ An unknown choice, out-of-range/noninteger choice index, unknown position, occup
 
 ### Requirement: Individual reveal and completion
 
-Reveal SHALL be allowed only after all three positions are filled. Each placed card SHALL be revealable independently, in any order, with its own position-specific meaning. Zero revealed cards corresponds to ready, one or two to revealing, and three to complete. No reveal-all command SHALL exist.
+Reveal SHALL be allowed only after all three positions are filled. Each placed card SHALL be revealable independently, in any order, with its own position-specific meaning. Zero revealed cards corresponds to ready, one or two to revealing, and three to complete.
 
 An unknown position, reveal before ready, repeated reveal, or reveal after completion SHALL leave state unchanged. Before the third reveal, session output SHALL contain no completed reading or final verdict. The third reveal SHALL produce the completed reading and deterministic interpretation immediately, without waiting for animation or a timer.
 

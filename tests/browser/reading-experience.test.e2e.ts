@@ -247,6 +247,11 @@ describe('reading experience', () => {
     await start(page, 'deck layout boundaries')
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.mouse.move(0, 0)
+    // Starting focuses the first choice with a smooth scroll; measure after it settles.
+    await page.waitForFunction(() => {
+      const y = window.scrollY
+      return new Promise((resolve) => setTimeout(() => resolve(window.scrollY === y), 150))
+    })
     const firstChoice = page.locator('[data-choice="0"]')
     const beforeHover = await firstChoice.boundingBox()
     if (!beforeHover) throw new Error('The first desktop choice is not visible')
@@ -460,7 +465,8 @@ describe('reading experience', () => {
     async (t) => {
       const { page } = await setup(t)
       await start(page, 'placement flow')
-      const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
+      // Placed cards leave the deck, so address choices by their stable index, not list position.
+      const choices = { nth: (index: number) => page.locator(`[data-choice="${index}"]`) }
       await choices.nth(2).click()
       expect(await choices.nth(2).getAttribute('data-selected')).not.toBeNull()
       expect(await choices.nth(2).locator('[data-badge="selected"]').count()).toBe(1)
@@ -494,6 +500,7 @@ describe('reading experience', () => {
           expect(await choices.nth(5).isDisabled()).toBe(true)
           expect(await choices.nth(5).getAttribute('data-picked')).not.toBeNull()
           expect(await choices.nth(5).locator('[data-badge="placed"]').count()).toBe(1)
+          await choices.nth(5).waitFor({ state: 'hidden' })
           expect(
             await page.locator('[data-reveal]').first().locator('[data-badge="placed"]').count(),
           ).toBe(1)
@@ -516,7 +523,7 @@ describe('reading experience', () => {
           )
         }
       }
-      expect(await choices.locator(':enabled').count()).toBe(0)
+      expect(await page.locator('[data-choice]:enabled').count()).toBe(0)
       expect(await page.locator('[data-reveal]').count()).toBe(3)
       expect(
         await page
@@ -537,6 +544,7 @@ describe('reading experience', () => {
         const animate = Element.prototype.animate
         Object.defineProperty(window, '__revealAnimations', { value: [] })
         Object.defineProperty(window, '__revealedFrames', { value: [] })
+        // One animation per reveal: the whole card turns over.
         Element.prototype.animate = function (...args) {
           const animation = animate.apply(this, args)
           ;(window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations.push(
@@ -606,7 +614,7 @@ describe('reading experience', () => {
               (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
                 .length,
           ),
-        ).toBe((index + 1) * 2)
+        ).toBe(index + 1)
         expect(await front.getAttribute('alt')).toBe('')
         await front.evaluate((image) => (image as HTMLImageElement).decode())
         expect(
@@ -660,7 +668,7 @@ describe('reading experience', () => {
                 (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
                   .length,
             ),
-          ).toBe(2)
+          ).toBe(1)
           await page.setViewportSize({ width: 1024, height: 900 })
           expect(await page.locator('[data-card-details]').count()).toBe(1)
           expect(
@@ -684,7 +692,7 @@ describe('reading experience', () => {
                 (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
                   .length,
             ),
-          ).toBe(2)
+          ).toBe(1)
           await page.emulateMedia({ reducedMotion: 'reduce' })
           await page.waitForFunction(() =>
             (
@@ -792,7 +800,7 @@ describe('reading experience', () => {
             (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
               .length,
         ),
-      ).toBe(6)
+      ).toBe(3)
       await page.getByRole('button', { name: 'Ask again' }).focus()
       await page.keyboard.press('Enter')
       await page.waitForFunction(() => document.activeElement?.matches('input'))
@@ -811,9 +819,26 @@ describe('reading experience', () => {
             (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations
               .length,
         ),
-      ).toBe(8)
+      ).toBe(4)
     },
   )
+
+  test('reveal all turns the remaining cards and completes the reading', async (t) => {
+    const { page } = await setup(t)
+    await start(page, 'reveal all question')
+    expect(await page.locator('[data-reveal-all]').count()).toBe(0)
+    for (let index = 0; index < 3; index++) {
+      await page.locator('[data-choice]:not([data-picked])').first().click()
+      await page.getByRole('button', { name: `Place card in ${positions[index].label}` }).click()
+    }
+    await page.getByRole('button', { name: `Reveal ${positions[1].label} card` }).click()
+    expect(await page.locator('[data-verdict]').count()).toBe(0)
+    await page.getByRole('button', { name: 'Reveal all' }).click()
+    await page.locator('[data-verdict]').waitFor()
+    expect(await page.locator('[data-card-details]').count()).toBe(3)
+    expect(await page.locator('[data-reveal-all]').count()).toBe(0)
+    await page.waitForFunction(() => document.activeElement?.matches('[data-verdict]'))
+  })
 
   test('reload clears a completed reading', { timeout: 30_000 }, async (t) => {
     const { page } = await setup(t)

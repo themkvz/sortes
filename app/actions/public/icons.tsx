@@ -2,6 +2,12 @@ import type { Handle } from 'remix/component'
 
 // Path data copied from lucide-static 1.67.0 (ISC), 24×24 grid.
 const paths = {
+  'arrow-right': () => (
+    <>
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </>
+  ),
   check: () => <path d="M20 6 9 17l-5-5" />,
   'circle-dashed': () => (
     <>
@@ -13,6 +19,13 @@ const paths = {
       <path d="M21.818 10.1a10 10 0 0 1 0 3.8" />
       <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69" />
       <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7" />
+    </>
+  ),
+  'link-2': () => (
+    <>
+      <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+      <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+      <path d="M8 12h8" />
     </>
   ),
   lock: () => (
@@ -31,6 +44,12 @@ const paths = {
     <>
       <path d="M5 12h14" />
       <path d="M12 5v14" />
+    </>
+  ),
+  'rotate-ccw': () => (
+    <>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
     </>
   ),
   sparkles: () => (

@@ -41,24 +41,28 @@ import {
   fieldStyle,
   formRowStyle,
   formStyle,
+  guideProgressStyle,
+  guideTextStyle,
   headerStyle,
   headingStyle,
   hintStyle,
+  iconButtonStyle,
   inputStyle,
   labelStyle,
   liveStatusStyle,
   mobileOnlyStyle,
-  mutedMonoStyle,
-  mutedSmallStyle,
+  revealAllStyle,
+  secondaryButtonStyle,
   slotLabelStyle,
   slotWrapStyle,
+  spreadGateCopyStyle,
+  spreadGateStyle,
+  spreadGateTitleStyle,
   spreadHeaderStyle,
+  spreadInstructionStyle,
   spreadRowStyle,
   spreadSectionStyle,
-  stageMetaStyle,
-  stageNameStyle,
-  stageNumberStyle,
-  stageRuleStyle,
+  spreadTitleStyle,
   statusStyle,
   submitButtonStyle,
   wideOnlyStyle,
@@ -72,7 +76,9 @@ const slotPrompts = {
   problem: 'What is getting in the way',
   advice: 'The move worth considering',
 }
-const STAGE_COUNT = 5
+// Depth of the deck's shallow arc: the outer cards sit this much lower than the centre one.
+const DECK_ARC_DEPTH_CSS_PX = 24
+const positionNames = new Intl.ListFormat('en', { type: 'disjunction' })
 const badgeIcons = { selected: 'check', placed: 'lock', revealable: 'sparkles' } as const
 
 export function SiteHeader(handle: Handle<{ children?: RemixNode }>) {
@@ -127,8 +133,16 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
     handle.update()
   })
 
+  const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
   const focus = (selector: string) => {
-    handle.queueTask(() => boardRoot?.querySelector<HTMLElement>(selector)?.focus())
+    handle.queueTask(() => {
+      const target = boardRoot?.querySelector<HTMLElement>(selector)
+      if (!target) return
+      // Focus without the browser's instant jump; scroll only as far as needed to show it.
+      target.focus({ preventScroll: true })
+      target.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' })
+    })
     handle.update()
   }
 
@@ -158,7 +172,28 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
     focus(board.reading.status === 'complete' ? '[data-verdict]' : '[data-reveal]:not(:disabled)')
   }
 
+  const REVEAL_ALL_STAGGER_MS = 150
+  let revealTimers: ReturnType<typeof setTimeout>[] = []
+  const clearRevealTimers = () => {
+    for (const timer of revealTimers) clearTimeout(timer)
+    revealTimers = []
+  }
+
+  const revealAll = () => {
+    const state = board.reading
+    if (state.status !== 'ready' && state.status !== 'revealing') return
+    clearRevealTimers()
+    const hidden = developerDeck.positions.filter(
+      (position) => !state.placements[position.id]?.revealed,
+    )
+    const stagger = reducedMotion() ? 0 : REVEAL_ALL_STAGGER_MS
+    hidden.forEach((position, index) => {
+      revealTimers.push(setTimeout(() => turn(position.id), index * stagger))
+    })
+  }
+
   const askAgain = () => {
+    clearRevealTimers()
     draft = ''
     board = restart(board)
     focus('input')
@@ -167,14 +202,6 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
   return () => {
     const { reading: state, pending, error, ready, status } = board
     const active = state.status !== 'idle'
-    const spreadInstruction =
-      state.status === 'idle'
-        ? 'Ask first. Then choose three cards.'
-        : state.status === 'choosing'
-          ? 'Choose and place three cards.'
-          : state.status === 'complete'
-            ? 'Your reading is complete.'
-            : 'Reveal your three cards.'
     const positions = developerDeck.positions
     const placements =
       state.status === 'choosing' || state.status === 'ready' || state.status === 'revealing'
@@ -190,18 +217,31 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
           : undefined)
       return card ? [{ card, position, positionIndex }] : []
     })
-    const [stageNumber, stageName] =
+    const isDragging = !!gesture?.state.active
+    const deckCards =
       state.status === 'idle'
-        ? [1, 'ASK']
-        : state.status === 'choosing'
-          ? pending === null
-            ? [2, 'CHOOSE']
-            : [3, 'PLACE']
-          : state.status === 'complete'
-            ? [5, 'VERDICT']
-            : [4, 'REVEAL']
-    const placedCount =
-      state.status === 'complete' ? positions.length : Object.keys(placements).length
+        ? Array.from({ length: CHOICE_COUNT }, () => ({ picked: true }))
+        : choices
+    const inDeck = deckCards.flatMap((card, index) => (active && card.picked ? [] : [index]))
+    const deckOffset = (index: number) => {
+      const at = inDeck.indexOf(index)
+      const middle = (inDeck.length - 1) / 2
+      if (at < 0 || middle === 0) return 0
+      return Math.round(DECK_ARC_DEPTH_CSS_PX * ((at - middle) / middle) ** 2)
+    }
+    const placed = `${Object.keys(placements).length} of ${positions.length} placed`
+    const positionList = positionNames.format(positions.map((position) => position.label))
+    const [guide, progress] =
+      state.status === 'choosing'
+        ? pending === null && !isDragging
+          ? ['Choose one of the hidden cards below.', placed]
+          : [`${isDragging ? 'Drop it on' : 'Now place it in'} ${positionList}.`, placed]
+        : state.status === 'complete'
+          ? ['Your reading is complete.', '']
+          : [
+              'Reveal each card in any order, or all at once.',
+              `${revealedCards.length} of ${positions.length} revealed`,
+            ]
     return (
       <div
         mix={[
@@ -225,7 +265,10 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
               },
               { capture: true, signal },
             )
-            signal.addEventListener('abort', () => gesture?.cancel(false))
+            signal.addEventListener('abort', () => {
+              gesture?.cancel(false)
+              clearRevealTimers()
+            })
           }),
           on('keydown', (event) => {
             if (event.key !== 'Escape' || (!gesture && board.pending === null)) return
@@ -235,18 +278,7 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
           }),
         ]}
       >
-        <SiteHeader>
-          <div aria-hidden="true" mix={stageMetaStyle}>
-            <span mix={[wideOnlyStyle, stageNumberStyle]}>
-              {String(stageNumber).padStart(2, '0')} / {String(STAGE_COUNT).padStart(2, '0')}
-            </span>
-            <span mix={[wideOnlyStyle, stageRuleStyle]} />
-            <span mix={[wideOnlyStyle, stageNameStyle]}>{stageName}</span>
-            <span mix={[mobileOnlyStyle, stageNumberStyle]}>
-              {placedCount} / {positions.length} PLACED
-            </span>
-          </div>
-        </SiteHeader>
+        <SiteHeader />
         <section mix={boardStyle}>
           <section aria-label="Ask your question" mix={askStyle}>
             <h1 mix={headingStyle}>Ask something you're overthinking.</h1>
@@ -285,9 +317,10 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                 <button
                   type="submit"
                   disabled={!ready || active}
-                  mix={[buttonStyle, submitButtonStyle]}
+                  mix={[buttonStyle, iconButtonStyle, submitButtonStyle]}
                 >
                   {draft.trim() ? 'Ask' : 'Surprise me'}
+                  <Icon name={draft.trim() ? 'arrow-right' : 'sparkles'} size={18} />
                 </button>
               </div>
               {error && (
@@ -295,11 +328,11 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                   {error}
                 </p>
               )}
-              <p mix={statusStyle}>
+              <p data-quiet={active || undefined} mix={statusStyle}>
                 {!active && (
                   <span mix={hintStyle}>Keep it specific. The deck is dramatic, not psychic.</span>
                 )}
-                <span aria-live="polite" data-quiet={!active || undefined} mix={liveStatusStyle}>
+                <span aria-live="polite" data-quiet mix={liveStatusStyle}>
                   {status}
                 </span>
               </p>
@@ -308,21 +341,33 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
           </section>
           <section aria-label="Your spread" mix={spreadSectionStyle}>
             <div mix={spreadHeaderStyle}>
-              <span mix={mutedMonoStyle}>YOUR SPREAD</span>
-              <span mix={mutedSmallStyle}>{spreadInstruction}</span>
+              <h2 mix={spreadTitleStyle}>Your spread</h2>
+              {active && (
+                <p mix={spreadInstructionStyle}>
+                  <span mix={guideTextStyle}>{guide}</span>
+                  {progress && <span mix={guideProgressStyle}>{progress}</span>}
+                </p>
+              )}
             </div>
             <div mix={spreadRowStyle}>
+              {!active && (
+                <div mix={[spreadGateStyle, on('click', () => focus('input'))]}>
+                  <p mix={spreadGateTitleStyle}>Ask your question first</p>
+                  <p mix={spreadGateCopyStyle}>
+                    Then choose three hidden cards and place them here.
+                  </p>
+                </div>
+              )}
               {positions.map((position, positionIndex) => {
                 const placement = placements[position.id]
-                const isEligible = pending !== null && canPlace(state, position.id)
+                const isDropTarget = isDragging && gesture?.state.target === position.id
+                const isEligible = (pending !== null || isDragging) && canPlace(state, position.id)
                 const revealed = revealedCards.find((item) => item.position.id === position.id)
                 return (
                   <div
                     key={position.id}
                     data-position={position.id}
-                    data-drop-target={
-                      (gesture?.state.active && gesture.state.target === position.id) || undefined
-                    }
+                    data-drop-target={isDropTarget || undefined}
                     mix={slotWrapStyle}
                   >
                     {placement || revealed ? (
@@ -366,7 +411,11 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                           </span>
                         )}
                         <span data-slot-name>{position.label.toUpperCase()}</span>
-                        {isEligible && <span data-slot-hint>Place in {position.label}</span>}
+                        {isEligible && (
+                          <span data-slot-hint>
+                            {isDropTarget ? 'Release to place' : `Place in ${position.label}`}
+                          </span>
+                        )}
                         <span data-slot-prompt>
                           {slotPrompts[position.id as keyof typeof slotPrompts]}
                         </span>
@@ -386,11 +435,21 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                 />
               ))}
             </div>
-            {!completedState && (
-              <p mix={commitmentStyle}>
-                <Icon name="lock" size={16} />
-                Once placed, a card stays there.
-              </p>
+            {state.status === 'ready' || state.status === 'revealing' ? (
+              <button
+                type="button"
+                data-reveal-all
+                mix={[buttonStyle, revealAllStyle, on('click', revealAll)]}
+              >
+                Reveal all
+              </button>
+            ) : (
+              !completedState && (
+                <p mix={commitmentStyle}>
+                  <Icon name="lock" size={16} />
+                  Once placed, a card stays there.
+                </p>
+              )
             )}
           </section>
           {(choices.length > 0 || state.status === 'idle') && (
@@ -404,11 +463,16 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                 </span>
                 <span mix={deckRuleStyle} />
               </div>
-              <div mix={deckGridStyle}>
-                {(state.status === 'idle'
-                  ? Array.from({ length: CHOICE_COUNT }, () => ({ picked: true }))
-                  : choices
-                ).map(({ picked }, index) => (
+              <div
+                data-idle={!active || undefined}
+                mix={[
+                  deckGridStyle,
+                  on('click', () => {
+                    if (!active) focus('input')
+                  }),
+                ]}
+              >
+                {deckCards.map(({ picked }, index) => (
                   <button
                     key={index}
                     type="button"
@@ -417,7 +481,9 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                     disabled={!ready || picked}
                     data-selected={pending === index || undefined}
                     data-picked={(active && picked) || undefined}
+                    data-dragging={(isDragging && gesture?.choiceIndex === index) || undefined}
                     data-choice={index}
+                    style={{ '--deck-offset': `${deckOffset(index)}px` }}
                     mix={[
                       cardBackStyle,
                       on('click', () => {
@@ -444,7 +510,16 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
               actions={
                 <>
                   <ShareReading reading={completedState} />
-                  <button type="button" mix={[buttonStyle, on('click', askAgain)]}>
+                  <button
+                    type="button"
+                    mix={[
+                      buttonStyle,
+                      secondaryButtonStyle,
+                      iconButtonStyle,
+                      on('click', askAgain),
+                    ]}
+                  >
+                    <Icon name="rotate-ccw" size={18} />
                     Ask again
                   </button>
                 </>

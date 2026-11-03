@@ -1,5 +1,5 @@
 const DRAG_THRESHOLD_CSS_PX = 6
-const DRAG_PREVIEW_WIDTH_CSS_PX = 56
+const DRAG_PREVIEW_WIDTH_CSS_PX = 82
 
 interface DragGestureOptions {
   /** Whether a hovered position can receive the dragged card right now. */
@@ -17,8 +17,10 @@ function clampPreviewPoint(x: number, y: number) {
     Math.max(0, window.innerWidth - 2),
     (Math.max(0, window.innerHeight - 2) * 82) / 116,
   )
-  const halfWidth = width / 2
-  const halfHeight = (width * 116) / 164
+  // Measure the rendered preview so its tilt and lift are included; estimate before it exists.
+  const preview = document.querySelector('[data-drag-preview]')?.getBoundingClientRect()
+  const halfWidth = preview ? preview.width / 2 : width / 2
+  const halfHeight = preview ? preview.height / 2 : (width * 116) / 164
   return {
     x: Math.min(Math.max(halfWidth, x), Math.max(halfWidth, window.innerWidth - halfWidth)),
     y: Math.min(Math.max(halfHeight, y), Math.max(halfHeight, window.innerHeight - halfHeight)),
@@ -97,5 +99,5 @@ export function startCardDrag(
     { signal },
   )
 
-  return { state, cancel }
+  return { state, cancel, choiceIndex }
 }
