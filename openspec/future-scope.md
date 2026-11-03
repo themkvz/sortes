@@ -36,7 +36,7 @@ Product sources: [MVP tech design](../design/mvp-tech-design.md) and
   focus, hit areas, and the question field boundary are clearer. Live and shared results use
   the same readable text presentation. The two retained contrast/readability findings are
   closed by measured and browser-checked evidence. See the
-  [change](changes/polish-reading-board/proposal.md) and
+  [change](changes/archive/2026-11-03-polish-reading-board/proposal.md) and
   [measured design check](../anti-slop/audit-007-2026-11-03.md).
 
 ## Suggested changes
