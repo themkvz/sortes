@@ -145,7 +145,8 @@ export const submitButtonStyle = css({
   padding: '8px 16px',
   fontSize: '16px',
   fontWeight: 600,
-  transition: 'background-color 160ms ease-out, transform 160ms ease-out',
+  transition:
+    'background-color 160ms ease-out, transform 160ms ease-out, box-shadow 200ms ease-out',
   '@media (hover: hover) and (pointer: fine)': {
     '&:not(:disabled):hover': { background: '#F6B862', transform: 'translateY(-1px)' },
   },
@@ -403,6 +404,7 @@ export const faceDownStyle = css({
 })
 export const frontFrameStyle = css({
   position: 'relative',
+  borderRadius: 'var(--radius-card)',
   width: '100%',
   maxWidth: '100%',
   aspectRatio: '82 / 116',
@@ -455,6 +457,7 @@ export const resultStyle = css({
 // The verdict is printed on the card-face parchment, the one light surface on the table.
 export const resultPanelStyle = css({
   boxSizing: 'border-box',
+  position: 'relative',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
@@ -464,13 +467,12 @@ export const resultPanelStyle = css({
   background: 'var(--color-card-face)',
   color: 'var(--color-card-ink)',
   textAlign: 'center',
-  // The verdict surfaces like ink on parchment: from faint and blurred to sharp.
+  // The verdict rises into place; only opacity and transform move, so it stays smooth.
   transition:
-    'opacity 900ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 900ms cubic-bezier(0.2, 0.7, 0.2, 1), transform 900ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+    'opacity 900ms cubic-bezier(0.2, 0.7, 0.2, 1), transform 900ms cubic-bezier(0.2, 0.7, 0.2, 1)',
   '@starting-style': {
     opacity: 0,
-    filter: 'blur(10px)',
-    transform: 'translateY(16px) scale(0.98)',
+    transform: 'translateY(20px) scale(0.96)',
   },
   '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
   '@media (max-width: 599px)': { padding: '28px 20px 32px' },

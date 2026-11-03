@@ -23,6 +23,8 @@ export function PageShell(handle: Handle<{ children?: RemixNode }>) {
 }
 
 const mainStyle = css({
+  // Sparkle bursts may fly past the screen edge; clip them without creating a scroll container.
+  overflowX: 'clip',
   boxSizing: 'border-box',
   minHeight: '100svh',
   padding: '16px 16px 40px',

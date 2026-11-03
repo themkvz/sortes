@@ -2,6 +2,7 @@ import type { Handle } from 'remix/component'
 import { on, ref } from 'remix/component'
 
 import type { CardInterpretation } from '../../domain/tarot/reading.ts'
+import { sheenStyle } from './magic.styles.ts'
 import {
   backFaceStyle,
   flipCardStyle,
@@ -9,6 +10,9 @@ import {
   frontFrameStyle,
   frontImageStyle,
 } from './reading-board.styles.ts'
+import { Sparkles } from './sparkles.tsx'
+
+const seedOf = (text: string) => [...text].reduce((sum, char) => sum + char.charCodeAt(0), 0)
 
 const REVEAL_FLIP_DURATION_MS = 420
 const REVEAL_FLIP_EASING = 'cubic-bezier(0.3, 0.7, 0.2, 1)'
@@ -51,6 +55,7 @@ export function RevealedCard(handle: Handle<{ card: CardInterpretation }>) {
               alt=""
               aria-hidden="true"
               data-front-art
+              decoding="async"
               width="492"
               height="700"
               mix={[
@@ -62,6 +67,8 @@ export function RevealedCard(handle: Handle<{ card: CardInterpretation }>) {
             />
           </div>
         </div>
+        <span mix={sheenStyle} style={{ '--sheen-delay': '260ms' }} />
+        <Sparkles count={10} mode="burst" seed={seedOf(card.cardId)} reach={110} delayMs={180} />
       </div>
     )
   }

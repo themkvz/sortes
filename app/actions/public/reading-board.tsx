@@ -18,6 +18,13 @@ import { CardDetails } from './card-details.tsx'
 import { canStartDrag, startCardDrag } from './drag-gesture.ts'
 import { Icon } from './icons.tsx'
 import {
+  breathingOrbStyle,
+  ctaMagicStyle,
+  floatStyle,
+  tableRingsStyle,
+  tableStarsStyle,
+} from './magic.styles.ts'
+import {
   askStyle,
   badgeStyle,
   boardShellStyle,
@@ -70,6 +77,7 @@ import {
 import { ReadingResult } from './reading-result.tsx'
 import { RevealedCard } from './revealed-card.tsx'
 import { ShareReading } from './share-reading.tsx'
+import { Sparkles } from './sparkles.tsx'
 
 const slotPrompts = {
   context: 'The situation around it',
@@ -317,7 +325,7 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                 <button
                   type="submit"
                   disabled={!ready || active}
-                  mix={[buttonStyle, iconButtonStyle, submitButtonStyle]}
+                  mix={[buttonStyle, iconButtonStyle, submitButtonStyle, ctaMagicStyle]}
                 >
                   {draft.trim() ? 'Ask' : 'Surprise me'}
                   <Icon name={draft.trim() ? 'arrow-right' : 'sparkles'} size={18} />
@@ -349,10 +357,15 @@ export const ReadingBoard = clientEntry(import.meta.url, function ReadingBoard(h
                 </p>
               )}
             </div>
-            <div mix={spreadRowStyle}>
+            <div mix={[spreadRowStyle, tableRingsStyle]}>
+              <span mix={tableStarsStyle}>
+                <Sparkles count={18} mode="drift" seed={11} />
+              </span>
               {!active && (
                 <div mix={[spreadGateStyle, on('click', () => focus('input'))]}>
-                  <p mix={spreadGateTitleStyle}>Ask your question first</p>
+                  <span aria-hidden="true" mix={breathingOrbStyle} />
+                  <Sparkles count={12} mode="drift" seed={5} />
+                  <p mix={[spreadGateTitleStyle, floatStyle]}>Ask your question first</p>
                   <p mix={spreadGateCopyStyle}>
                     Then choose three hidden cards and place them here.
                   </p>
