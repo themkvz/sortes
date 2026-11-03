@@ -27,8 +27,8 @@ The desktop deck uses nine compact 82×116 cards in a shallow stagger. Phones us
 3×3 deck and keep the three spread cards side by side, with full-width, position-labeled
 interpretations below. Interpretation text is 16px with 24px line height; selection, placement,
 reveal availability, and focus have distinct cues. The question field has a visible boundary
-before focus. See the [measured pen.dev comparison](anti-slop/audit-007-2026-11-03.md) for reference
-adaptations and verification.
+before focus. Reference adaptations are recorded in the archived `polish-reading-board` change's
+`design.md`.
 
 ## Stack and pinned versions
 
@@ -228,5 +228,4 @@ and phone interpretation readability are also implemented. Completed changes are
 `openspec/changes/archive/`; new features need a new OpenSpec proposal.
 
 Remaining release checks: broader browser and physical-device verification, CI, and the
-production container check. See the [latest audit](anti-slop/audit-007-2026-11-03.md) for
-reference adaptations and coverage limits.
+production container check.
