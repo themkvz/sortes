@@ -84,7 +84,7 @@ variables and translated into CSS custom properties / literal values in
 `app/actions/document.tsx` and the component styles — see that file for the full token list.
 
 The shared face-down card uses a 38 KB WebP asset at `public/cards/card-back.webp`; its PNG
-source is retained at `public/cards/card-back.png`. Decorative card backs and the brand mark
+source is retained at `design/card-back.png`. Decorative card backs and the brand mark
 are hidden from assistive technology.
 
 ## Requirements

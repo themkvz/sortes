@@ -2,7 +2,7 @@
 
 Generated with the built-in Image Gen tool on 2026-10-30.
 
-- Asset: `public/cards/card-back.png`
+- Source asset: `design/card-back.png` (served as `public/cards/card-back.webp`)
 - Original dimensions: 1052 x 1495 pixels
 - Format: opaque PNG
 - Intended use: the same decorative back for every face-down choice and placed card; UI integration and web optimization remain pending.

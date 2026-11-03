@@ -10,3 +10,11 @@ playwright-report/
 blob-report/
 playwright/.cache/
 .playwright-cli/
+
+# Local machine and editor files
+.DS_Store
+.env.*
+!.env.example
+.claude/settings.local.json
+.vscode/
+.idea/
