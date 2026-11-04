@@ -5,10 +5,22 @@ import { describe, type TestContext, test } from 'remix/test'
 
 import { developerDeck } from '../../app/domain/tarot/decks/developer.ts'
 import { idle, place, reveal, start as startReading } from '../../app/domain/tarot/reading.ts'
+import type { ReadingSnapshot } from '../../app/domain/tarot/snapshot.ts'
+import { loadServerEnv } from '../../app/env.ts'
+import { createReadingKey, openValue } from '../../app/reading-state/seal.ts'
 import { createAppRouter } from '../../app/router.tsx'
+import { routes } from '../../app/routes.ts'
 
 const positions = developerDeck.positions
 const SENTINELS = /Should I ask|privacy sentinel|acceptance-question|private-question/i
+const COOKIE_NAME = 'sortes_reading'
+const IDLE_GATE = 'Ask your question first'
+const SEAL_PATH = routes.readingSeal.href()
+const READING_STATE_PATHS = [SEAL_PATH, routes.readingClear.href()]
+const COOKIE_POLL_MS = 25
+const COOKIE_WAIT_MS = 5000
+// The test server runs in this process, so the test can open tokens with the same temporary key.
+const readingKey = await createReadingKey(loadServerEnv().readingStateSecret)
 
 function monitor(target: Page, errors: string[], unexpectedRequests: string[]) {
   target.on('pageerror', (error) => errors.push(error.message))
@@ -18,9 +30,19 @@ function monitor(target: Page, errors: string[], unexpectedRequests: string[]) {
     }
   })
   target.on('request', (request) => {
+    const url = new URL(request.url())
     const body = request.postData() ?? ''
     const details = `${request.method()} ${request.url()} ${body}`
-    if (request.method() !== 'GET' || SENTINELS.test(decodeURIComponent(details))) {
+    const isReadingState =
+      request.method() === 'POST' &&
+      url.origin === new URL(target.url()).origin &&
+      READING_STATE_PATHS.includes(url.pathname)
+    // Only the app's own seal route may receive the question; clear carries no reading.
+    const checked = url.pathname === SEAL_PATH && isReadingState ? request.url() : details
+    if (
+      (request.method() !== 'GET' && !isReadingState) ||
+      SENTINELS.test(decodeURIComponent(checked))
+    ) {
       unexpectedRequests.push(details)
     }
   })
@@ -110,10 +132,163 @@ async function complete(
   return target
 }
 
+async function readingCookie(target: Page) {
+  return (await target.context().cookies()).find((cookie) => cookie.name === COOKIE_NAME)
+}
+
+/** Polls the context's cookie jar, since the seal and clear responses land asynchronously. */
+async function waitForCookie(
+  target: Page,
+  isDone: (cookie: Awaited<ReturnType<typeof readingCookie>>) => boolean | Promise<boolean>,
+) {
+  const deadline = Date.now() + COOKIE_WAIT_MS
+  for (;;) {
+    const cookie = await readingCookie(target)
+    if (await isDone(cookie)) return cookie
+    if (Date.now() > deadline) throw new Error('Timed out waiting for the reading cookie')
+    await target.waitForTimeout(COOKIE_POLL_MS)
+  }
+}
+
 async function noBrowserWrites(target: Page) {
-  return target.evaluate(
+  const isPageEmpty = await target.evaluate(
     () => !localStorage.length && !sessionStorage.length && document.cookie === '',
   )
+  return isPageEmpty && (await target.context().cookies()).length === 0
+}
+
+/**
+ * After a reading starts, the only stored value is the sealed HttpOnly session cookie: scripts
+ * cannot read it, browser storage stays empty, and it reveals no question or card.
+ */
+async function onlySealedReading(target: Page, question: string) {
+  await waitForCookie(target, (cookie) => cookie !== undefined)
+  const cookies = await target.context().cookies()
+  expect(cookies.map(({ name }) => name)).toEqual([COOKIE_NAME])
+  const [cookie] = cookies
+  expect(cookie.httpOnly).toBe(true)
+  expect(cookie.sameSite).toBe('Strict')
+  expect(cookie.path).toBe('/')
+  expect(cookie.expires).toBe(-1)
+  const stored = await target.evaluate(() => ({
+    localItems: localStorage.length,
+    sessionItems: sessionStorage.length,
+    cookie: document.cookie,
+  }))
+  expect(stored).toEqual({ localItems: 0, sessionItems: 0, cookie: '' })
+  const raw = Buffer.from(cookie.value, 'base64url').toString('latin1')
+  for (const text of [cookie.value, raw]) {
+    expect(text).not.toContain(question)
+    for (const card of developerDeck.cards) {
+      expect(text).not.toContain(card.name)
+      expect(text).not.toContain(card.meanings.context.text)
+    }
+  }
+  for (const card of developerDeck.cards) expect(raw).not.toContain(card.id)
+}
+
+/** Opens the sealed `{ n, at, r }` state; `r` is `null` once the reading was cleared. */
+async function stateOf(token: string | undefined) {
+  const state = token ? await openValue(readingKey, token) : undefined
+  return state as { n: number; at: number; r: ReadingSnapshot | null } | undefined
+}
+
+async function snapshotOf(token: string | undefined) {
+  return (await stateOf(token))?.r ?? undefined
+}
+
+/** Only the cleared reading's tombstone cookie is left, and browser storage stays empty. */
+async function onlyTombstone(target: Page) {
+  const isPageEmpty = await target.evaluate(
+    () => !localStorage.length && !sessionStorage.length && document.cookie === '',
+  )
+  const cookies = await target.context().cookies()
+  if (!isPageEmpty || cookies.length !== 1) return false
+  return (await stateOf(cookies[0].value))?.r === null
+}
+
+/**
+ * Runs `action` and waits until the cookie holds the seal for that step (by placed and revealed
+ * count). Each step has a unique count, so an older seal that was still in flight cannot match.
+ */
+async function saveAfter(
+  target: Page,
+  step: { placed: number; revealed: number },
+  action: () => Promise<unknown>,
+) {
+  await action()
+  const cookie = await waitForCookie(target, async (candidate) => {
+    const snapshot = await snapshotOf(candidate?.value)
+    const entries = Object.values(snapshot?.placements ?? {})
+    return (
+      !!snapshot &&
+      entries.length === step.placed &&
+      entries.filter(({ revealed }) => revealed).length === step.revealed
+    )
+  })
+  return cookie?.value ?? ''
+}
+
+async function storedSnapshot(target: Page) {
+  const snapshot = await snapshotOf((await readingCookie(target))?.value)
+  if (!snapshot) throw new Error('Expected a saved reading')
+  return snapshot
+}
+
+/** Records whether the idle gate is ever inserted while a page loads, from the first byte on. */
+async function watchIdleGate(target: Page) {
+  await target.addInitScript((gate) => {
+    const watched = window as typeof window & { __sawIdleGate?: boolean }
+    if (watched.__sawIdleGate !== undefined) return
+    watched.__sawIdleGate = false
+    new MutationObserver(() => {
+      if (document.body?.textContent?.includes(gate)) watched.__sawIdleGate = true
+    }).observe(document, { childList: true, subtree: true, characterData: true })
+  }, IDLE_GATE)
+}
+
+/** The server-rendered page already holds the restored reading, never the idle board. */
+async function expectRestoredHtml(target: Page, question: string) {
+  const html = await (await target.request.get(new URL('/', target.url()).toString())).text()
+  expect(html).not.toContain(IDLE_GATE)
+  expect(html).toMatch(new RegExp(`<input[^>]* value="${question}"[^>]* readonly`))
+}
+
+/** Reloads and checks the restored reading is there from the first paint until it is ready. */
+async function reloadRestored(target: Page, question: string) {
+  await expectRestoredHtml(target, question)
+  await watchIdleGate(target)
+  await target.reload()
+  await target.waitForFunction(
+    () => document.querySelector('[aria-live="polite"]')?.textContent === 'Reading restored.',
+  )
+  expect(
+    await target.evaluate(
+      () => (window as typeof window & { __sawIdleGate?: boolean }).__sawIdleGate,
+    ),
+  ).toBe(false)
+}
+
+async function liveStatus(target: Page) {
+  return target.locator('[aria-live="polite"]').first().textContent()
+}
+
+async function activeMatches(target: Page, selector: string) {
+  await target.waitForFunction((value) => document.activeElement?.matches(value), selector)
+}
+
+async function effectCount(target: Page, selector: string) {
+  return target
+    .locator(selector)
+    .evaluateAll((elements) =>
+      elements.reduce(
+        (sum, element) =>
+          sum +
+          element.getAnimations({ subtree: true }).length +
+          element.querySelectorAll('[data-mode="burst"]').length,
+        0,
+      ),
+    )
 }
 
 async function dragChoice(target: Page, choiceIndex: number, x: number, y: number) {
@@ -793,7 +968,7 @@ describe('reading experience', () => {
       }
       expect(await page.getByRole('button', { name: /Reveal all/i }).count()).toBe(0)
       expect(await page.getByRole('button', { name: 'Share' }).count()).toBe(1)
-      expect(await noBrowserWrites(page)).toBe(true)
+      await onlySealedReading(page, 'privacy sentinel question')
       expect(
         await page.evaluate(
           () =>
@@ -823,6 +998,53 @@ describe('reading experience', () => {
     },
   )
 
+  test(
+    'a delayed older seal during Reveal all does not replace the completed reading',
+    { timeout: 30_000 },
+    async (t) => {
+      const { page } = await setup(t)
+      const question = 'delayed reveal all seal'
+      await saveAfter(page, { placed: 0, revealed: 0 }, () => start(page, question))
+      for (let index = 0; index < 3; index++) {
+        await page.getByRole('button', { name: `Choose hidden card ${index + 1}` }).click()
+        await saveAfter(page, { placed: index + 1, revealed: 0 }, () =>
+          page.getByRole('button', { name: `Place card in ${positions[index].label}` }).click(),
+        )
+      }
+      // The first Reveal all seal that is not the final one reaches the server, but its response
+      // is held until the reading is complete on screen.
+      let releaseHeld!: () => void
+      const held = new Promise<void>((resolve) => {
+        releaseHeld = resolve
+      })
+      let heldDone: Promise<void> | undefined
+      await page.route('**/reading-state/seal', async (route) => {
+        const { snapshot } = route.request().postDataJSON() as { snapshot: ReadingSnapshot }
+        const revealed = Object.values(snapshot.placements).filter((item) => item.revealed)
+        if (revealed.length === 0 || revealed.length === 3 || heldDone) return route.continue()
+        heldDone = (async () => {
+          const response = await route.fetch()
+          await held
+          await route.fulfill({ response }).catch(() => {})
+        })()
+        await heldDone
+      })
+      await page.getByRole('button', { name: 'Reveal all' }).click()
+      await page.locator('[data-verdict]').waitFor()
+      expect(heldDone).toBeDefined()
+      releaseHeld()
+      // One write is in flight at a time, so the completed reading is sealed after the held one.
+      await saveAfter(page, { placed: 3, revealed: 3 }, async () => heldDone)
+      await page.unroute('**/reading-state/seal')
+
+      const saved = await storedSnapshot(page)
+      expect(Object.values(saved.placements).every(({ revealed }) => revealed)).toBe(true)
+      await reloadRestored(page, question)
+      expect(await page.locator('[data-verdict]').count()).toBe(1)
+      await verdictFor(page, question)
+    },
+  )
+
   test('reveal all turns the remaining cards and completes the reading', async (t) => {
     const { page } = await setup(t)
     await start(page, 'reveal all question')
@@ -840,14 +1062,271 @@ describe('reading experience', () => {
     await page.waitForFunction(() => document.activeElement?.matches('[data-verdict]'))
   })
 
-  test('reload clears a completed reading', { timeout: 30_000 }, async (t) => {
+  test('restores a reading after a reload while choosing', { timeout: 30_000 }, async (t) => {
     const { page } = await setup(t)
-    await complete(page, 'reload reset')
+    const question = 'reload while choosing'
+    await saveAfter(page, { placed: 0, revealed: 0 }, () => start(page, question))
+    await onlySealedReading(page, question)
+    await page.getByRole('button', { name: 'Choose hidden card 3' }).click()
+    await saveAfter(page, { placed: 1, revealed: 0 }, () =>
+      page.getByRole('button', { name: `Place card in ${positions[1].label}` }).click(),
+    )
+    const saved = await storedSnapshot(page)
+    expect(saved.placements).toEqual({ [positions[1].id]: { choice: 2, revealed: false } })
+
+    // Hold the browser modules back, so the page shows only what the server rendered.
+    await expectRestoredHtml(page, question)
+    await watchIdleGate(page)
+    let releaseModules!: () => void
+    const modulesReleased = new Promise<void>((resolve) => {
+      releaseModules = resolve
+    })
+    await page.route('**/assets/**', async (route) => {
+      await modulesReleased
+      await route.continue()
+    })
+    await page.reload({ waitUntil: 'commit' })
+    await page.locator('input[readonly]').waitFor()
+    expect(await page.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe(question)
+    expect(await page.locator('[data-choice][data-picked]').count()).toBe(1)
+    expect(await page.locator('button[type="submit"]').isDisabled()).toBe(true)
+    expect(await page.locator('[data-choice]:not(:disabled)').count()).toBe(0)
+    expect(await liveStatus(page)).toBe('Preparing the deck…')
+    releaseModules()
+    await page.waitForFunction(
+      () => document.querySelector('[aria-live="polite"]')?.textContent === 'Reading restored.',
+    )
+    await page.unroute('**/assets/**')
+    expect(
+      await page.evaluate(
+        () => (window as typeof window & { __sawIdleGate?: boolean }).__sawIdleGate,
+      ),
+    ).toBe(false)
+
+    const input = page.getByRole('textbox', { name: 'YOUR QUESTION' })
+    expect(await input.inputValue()).toBe(question)
+    expect(await input.getAttribute('readonly')).not.toBe(null)
+    expect(
+      await page
+        .locator('[data-choice][data-picked]')
+        .evaluateAll((choices) => choices.map((choice) => choice.getAttribute('data-choice'))),
+    ).toEqual(['2'])
+    expect(await page.locator('[data-choice]:not(:disabled)').count()).toBe(8)
+    expect(await page.locator(`[data-position="${positions[1].id}"] [data-reveal]`).count()).toBe(1)
+    await activeMatches(page, '[data-choice="0"]')
+
+    await page.getByRole('button', { name: 'Choose hidden card 1' }).click()
+    await page.getByRole('button', { name: `Place card in ${positions[0].label}` }).click()
+    await page.getByRole('button', { name: 'Choose hidden card 2' }).click()
+    await page.getByRole('button', { name: `Place card in ${positions[2].label}` }).click()
+    await page.getByRole('button', { name: 'Reveal all' }).click()
+    await page.locator('[data-verdict]').waitFor()
+    expect(
+      await page
+        .locator('[aria-label="Your spread"] [data-card-details]')
+        .evaluateAll((details) => details.map((detail) => detail.getAttribute('data-card-id'))),
+    ).toEqual([saved.choices[0], saved.choices[2], saved.choices[1]])
+    await verdictFor(page, question)
+  })
+
+  test('restores revealed cards settled after a reload during reveals', async (t) => {
+    const { page } = await setup(t)
+    await page.addInitScript(() => {
+      const animate = Element.prototype.animate
+      const animations: Animation[] = []
+      Object.defineProperty(window, '__revealAnimations', { value: animations })
+      Element.prototype.animate = function (...args) {
+        const animation = animate.apply(this, args)
+        animations.push(animation)
+        return animation
+      }
+    })
+    const animationCount = () =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __revealAnimations: Animation[] }).__revealAnimations.length,
+      )
+    await start(page, 'reload during reveals')
+    for (let index = 0; index < 3; index++) {
+      await page.getByRole('button', { name: `Choose hidden card ${index + 1}` }).click()
+      await page.getByRole('button', { name: `Place card in ${positions[index].label}` }).click()
+    }
+    await saveAfter(page, { placed: 3, revealed: 1 }, () =>
+      page.getByRole('button', { name: `Reveal ${positions[1].label} card` }).click(),
+    )
+    const saved = await storedSnapshot(page)
+    const revealedId = saved.choices[1]
+
+    await reloadRestored(page, 'reload during reveals')
+    expect(
+      await page
+        .locator('[data-card-details]')
+        .evaluateAll((details) => details.map((detail) => detail.getAttribute('data-card-id'))),
+    ).toEqual([revealedId])
+    expect(await page.locator('[data-reveal]:not(:disabled)').count()).toBe(2)
+    expect(await page.locator('[data-verdict]').count()).toBe(0)
+    expect(await effectCount(page, '[data-front-frame]')).toBe(0)
+    expect(await animationCount()).toBe(0)
+    await activeMatches(page, `[data-position="${positions[0].id}"] [data-reveal]`)
+    const body = (await page.locator('body').textContent()) ?? ''
+    for (const hiddenId of [saved.choices[0], saved.choices[2]]) {
+      const hidden = developerDeck.cards.find((card) => card.id === hiddenId)
+      expect(body).not.toContain(hidden?.name)
+    }
+
+    await page.getByRole('button', { name: `Reveal ${positions[0].label} card` }).click()
+    expect(await animationCount()).toBe(1)
+    expect(
+      await effectCount(page, `[data-position="${positions[0].id}"] [data-front-frame]`),
+    ).toBeGreaterThan(0)
+    expect(await page.locator('[data-verdict]').count()).toBe(0)
+  })
+
+  test(
+    'restores a completed reading without replaying effects, and Ask again clears it',
+    { timeout: 30_000 },
+    async (t) => {
+      const { page } = await setup(t)
+      const question = 'reload after completion'
+      await saveAfter(page, { placed: 3, revealed: 3 }, () => complete(page, question))
+      await onlySealedReading(page, question)
+      const verdict = await page.locator('[data-result-verdict]').textContent()
+      const faces = () =>
+        page
+          .locator('[aria-label="Your spread"] [data-card-details]')
+          .evaluateAll((details) => details.map((detail) => detail.getAttribute('data-card-id')))
+      const before = await faces()
+
+      await reloadRestored(page, question)
+      expect(await page.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe(question)
+      expect(await faces()).toEqual(before)
+      expect(await page.locator('[data-result-verdict]').textContent()).toBe(verdict)
+      await verdictFor(page, question)
+      expect(await page.getByRole('button', { name: 'Share', exact: true }).count()).toBe(1)
+      expect(await page.getByRole('button', { name: 'Ask again' }).count()).toBe(1)
+      expect(await page.locator('[aria-label="Reading result"] [data-restored]').count()).toBe(1)
+      expect(await effectCount(page, '[data-front-frame], [aria-label="Reading result"]')).toBe(0)
+      await activeMatches(page, '[data-verdict]')
+
+      await page.getByRole('button', { name: 'Ask again' }).click()
+      await activeMatches(page, 'input')
+      await waitForCookie(page, async (cookie) => (await stateOf(cookie?.value))?.r === null)
+      expect(await onlyTombstone(page)).toBe(true)
+      await page.reload()
+      await waitIdle(page)
+      // The watcher from the restore above does see the idle gate once nothing is saved.
+      expect(
+        await page.evaluate(
+          () => (window as typeof window & { __sawIdleGate?: boolean }).__sawIdleGate,
+        ),
+      ).toBe(true)
+      expect(await page.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe('')
+      expect(await page.locator('[data-verdict]').count()).toBe(0)
+      expect(await onlyTombstone(page)).toBe(true)
+    },
+  )
+
+  test('restores the reading after leaving and returning with back and forward', async (t) => {
+    const { page } = await setup(t)
+    const question = 'back and forward return'
+    await start(page, question)
+    await page.getByRole('button', { name: 'Choose hidden card 5' }).click()
+    await saveAfter(page, { placed: 1, revealed: 0 }, () =>
+      page.getByRole('button', { name: `Place card in ${positions[0].label}` }).click(),
+    )
+    const restoredBoard = async () => {
+      await page.waitForFunction(
+        (value) => document.querySelector<HTMLInputElement>('input[readonly]')?.value === value,
+        question,
+      )
+      expect(
+        await page
+          .locator('[data-choice][data-picked]')
+          .evaluateAll((choices) => choices.map((choice) => choice.getAttribute('data-choice'))),
+      ).toEqual(['4'])
+      expect(await page.locator('[data-reveal]').count()).toBe(1)
+    }
+    await page.goto('/does-not-exist')
+    await page.goBack()
+    await restoredBoard()
+    await page.goForward()
+    await page.goBack()
+    await restoredBoard()
+  })
+
+  test('starts fresh and clears the cookie when it is tampered with or removed', async (t) => {
+    const { page } = await setup(t)
+    for (const change of ['tamper', 'remove'] as const) {
+      await saveAfter(page, { placed: 0, revealed: 0 }, () => start(page, `${change} saved token`))
+      const cookie = await readingCookie(page)
+      if (!cookie) throw new Error('Expected a reading cookie')
+      const context = page.context()
+      if (change === 'remove') await context.clearCookies()
+      else {
+        const edited = cookie.value[20] === 'A' ? 'B' : 'A'
+        const value = `${cookie.value.slice(0, 20)}${edited}${cookie.value.slice(21)}`
+        await context.addCookies([{ ...cookie, value }])
+      }
+      await page.reload()
+      await waitIdle(page)
+      await waitForCookie(page, (current) => current === undefined)
+      expect(await page.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe('')
+      expect(await page.locator('input[readonly]').count()).toBe(0)
+      expect(await liveStatus(page)).toBe('The deck is ready.')
+      expect(await noBrowserWrites(page)).toBe(true)
+    }
+  })
+
+  test('another tab shares the saved reading while the first tab keeps it', async (t) => {
+    const { page, errors, unexpectedRequests } = await setup(t)
+    // The default test page owns its context, so both tabs share a context opened here.
+    const first = await openPage(page, errors, unexpectedRequests)
+    t.after(() => first.context.close())
+    const question = 'first tab reading'
+    await saveAfter(first.page, { placed: 0, revealed: 0 }, () => start(first.page, question))
+    const other = await first.context.newPage()
+    monitor(other, errors, unexpectedRequests)
+    await expectRestoredHtml(first.page, question)
+    await watchIdleGate(other)
+    await other.goto(first.page.url())
+    await other.waitForFunction(
+      () => document.querySelector('[aria-live="polite"]')?.textContent === 'Reading restored.',
+    )
+    expect(
+      await other.evaluate(
+        () => (window as typeof window & { __sawIdleGate?: boolean }).__sawIdleGate,
+      ),
+    ).toBe(false)
+    expect(await other.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe(question)
+    await onlySealedReading(other, question)
+    expect(await first.page.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe(
+      question,
+    )
+    await onlySealedReading(first.page, question)
+  })
+
+  test('saves nothing for an unstarted question or an unplaced selection', async (t) => {
+    const { page } = await setup(t)
+    await page.getByRole('textbox', { name: 'YOUR QUESTION' }).fill('private-question never asked')
     await page.reload()
     await waitIdle(page)
     expect(await page.getByRole('textbox', { name: 'YOUR QUESTION' }).inputValue()).toBe('')
-    expect(await page.locator('[data-verdict]').count()).toBe(0)
     expect(await noBrowserWrites(page)).toBe(true)
+
+    const token = await saveAfter(page, { placed: 0, revealed: 0 }, () =>
+      start(page, 'pending selection only'),
+    )
+    const seals: string[] = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === SEAL_PATH) seals.push(request.url())
+    })
+    await page.getByRole('button', { name: 'Choose hidden card 4' }).click()
+    await page.waitForTimeout(100)
+    expect(seals).toEqual([])
+    expect((await readingCookie(page))?.value).toBe(token)
+    await reloadRestored(page, 'pending selection only')
+    expect(await page.locator('[data-choice][aria-pressed="true"]').count()).toBe(0)
+    expect(await page.locator('[data-choice]:not(:disabled)').count()).toBe(9)
   })
 
   test('requires consent before creating a link and copies only after confirmation', async (t) => {
@@ -1067,7 +1546,7 @@ describe('reading experience', () => {
     t.after(() => touch.context.close())
     await complete(touch.page, 'acceptance-question-tap', 'tap')
     await verdictFor(touch.page, 'acceptance-question-tap')
-    expect(await noBrowserWrites(touch.page)).toBe(true)
+    await onlySealedReading(touch.page, 'acceptance-question-tap')
     const noJs = await openPage(
       page,
       errors,
@@ -1092,6 +1571,10 @@ describe('reading experience', () => {
       await page.addInitScript(() => {
         Object.defineProperty(Element.prototype, 'animate', { value: undefined })
       })
+      // This journey checks artwork, not restore: seals set no cookie, so each reload is fresh.
+      await page.route('**/reading-state/seal', (route) =>
+        route.fulfill({ json: { ok: true }, headers: { 'Cache-Control': 'no-store' } }),
+      )
       const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
       await start(page, 'card back fallback')
       for (let index = 0; index < 3; index++) {

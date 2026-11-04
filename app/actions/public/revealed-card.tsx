@@ -17,9 +17,10 @@ const seedOf = (text: string) => [...text].reduce((sum, char) => sum + char.char
 const REVEAL_FLIP_DURATION_MS = 420
 const REVEAL_FLIP_EASING = 'cubic-bezier(0.3, 0.7, 0.2, 1)'
 
-export function RevealedCard(handle: Handle<{ card: CardInterpretation }>) {
+/** A `settled` card was revealed before a reload: it shows face up without replaying effects. */
+export function RevealedCard(handle: Handle<{ card: CardInterpretation; settled?: boolean }>) {
   return () => {
-    const { card } = handle.props
+    const { card, settled } = handle.props
     return (
       <div data-front-frame mix={frontFrameStyle}>
         <div
@@ -27,7 +28,7 @@ export function RevealedCard(handle: Handle<{ card: CardInterpretation }>) {
             flipCardStyle,
             ref((flipCard, signal) => {
               const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
-              if (motion.matches || !flipCard.animate) return
+              if (handle.props.settled || motion.matches || !flipCard.animate) return
               let animation: Animation
               try {
                 // One card turns over as a whole, so its two faces never show the table behind.
@@ -67,8 +68,18 @@ export function RevealedCard(handle: Handle<{ card: CardInterpretation }>) {
             />
           </div>
         </div>
-        <span mix={sheenStyle} style={{ '--sheen-delay': '260ms' }} />
-        <Sparkles count={10} mode="burst" seed={seedOf(card.cardId)} reach={110} delayMs={180} />
+        {!settled && (
+          <>
+            <span mix={sheenStyle} style={{ '--sheen-delay': '260ms' }} />
+            <Sparkles
+              count={10}
+              mode="burst"
+              seed={seedOf(card.cardId)}
+              reach={110}
+              delayMs={180}
+            />
+          </>
+        )}
       </div>
     )
   }

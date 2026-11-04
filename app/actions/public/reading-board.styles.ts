@@ -475,6 +475,7 @@ export const resultPanelStyle = css({
     transform: 'translateY(20px) scale(0.96)',
   },
   '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+  '&[data-restored]': { transition: 'none' },
   '@media (max-width: 599px)': { padding: '28px 20px 32px' },
   '& [data-result-question]': {
     margin: 0,

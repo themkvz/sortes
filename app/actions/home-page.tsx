@@ -1,14 +1,16 @@
 import type { Handle, RemixNode } from 'remix/component'
 import { css } from 'remix/component'
 
+import type { ReadingSnapshot } from '../domain/tarot/snapshot.ts'
 import { Document } from './document.tsx'
 import { ReadingBoard } from './public/reading-board.tsx'
 
-export function HomePage() {
+/** `restored` is the reading saved in this browser session, already opened and validated. */
+export function HomePage(handle: Handle<{ restored?: ReadingSnapshot }>) {
   return () => (
     <Document>
       <PageShell>
-        <ReadingBoard />
+        <ReadingBoard restored={handle.props.restored} />
       </PageShell>
     </Document>
   )

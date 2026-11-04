@@ -32,7 +32,8 @@ jobs:
 
       - name: Container smoke check
         run: |
-          docker run -d --rm --name sortes-ci -p 44101:44100 sortes-app:ci
+          docker run -d --rm --name sortes-ci -p 44101:44100 \
+            -e READING_STATE_SECRET=ci-smoke-reading-state-secret-0123456789 sortes-app:ci
           for i in $(seq 1 20); do
             if curl -sf http://localhost:44101/ >/dev/null; then break; fi
             sleep 0.5

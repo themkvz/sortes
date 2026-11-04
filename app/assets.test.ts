@@ -23,6 +23,8 @@ test('does not serve test, environment, or server files', async () => {
   for (const path of [
     '/assets/app/env.ts',
     '/assets/app/domain/tarot/reading.test.ts',
+    '/assets/app/reading-state/seal.ts',
+    '/assets/app/reading-state/actions.ts',
     '/assets/server.ts',
   ]) {
     const response = await router.fetch(new Request(`http://localhost${path}`))

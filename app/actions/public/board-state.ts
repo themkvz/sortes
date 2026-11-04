@@ -1,6 +1,7 @@
 import type { Deck } from '../../domain/tarot/deck.ts'
-import type { ReadingState } from '../../domain/tarot/reading.ts'
+import type { PositionId, ReadingState } from '../../domain/tarot/reading.ts'
 import * as reading from '../../domain/tarot/reading.ts'
+import type { ReadingSnapshot } from '../../domain/tarot/snapshot.ts'
 
 export interface BoardState {
   readonly reading: ReadingState
@@ -8,20 +9,35 @@ export interface BoardState {
   readonly error: string
   readonly status: string
   readonly ready: boolean
+  /** The nine card IDs the reading started with; the reading state drops them once all are placed. */
+  readonly choices: ReadonlyArray<string>
+  /** Positions already revealed when the reading was restored; they render without effects. */
+  readonly settled: ReadonlyArray<PositionId>
 }
 
-export function initialBoard(): BoardState {
+/** With a `restored` reading, the board starts from it on the server and in the browser alike. */
+export function initialBoard(restored?: {
+  snapshot: ReadingSnapshot
+  reading: ReadingState
+}): BoardState {
   return {
-    reading: reading.idle(),
+    reading: restored?.reading ?? reading.idle(),
     pending: null,
     error: '',
     status: 'Preparing the deck…',
     ready: false,
+    choices: restored?.snapshot.choices ?? [],
+    settled: restored
+      ? Object.keys(restored.snapshot.placements).filter(
+          (id) => restored.snapshot.placements[id].revealed,
+        )
+      : [],
   }
 }
 
 export function markReady(board: BoardState): BoardState {
-  return { ...board, ready: true, status: 'The deck is ready.' }
+  const status = board.reading.status === 'idle' ? 'The deck is ready.' : 'Reading restored.'
+  return { ...board, ready: true, status }
 }
 
 export function start(board: BoardState, deck: Deck, draft: string): BoardState {
@@ -39,6 +55,9 @@ export function start(board: BoardState, deck: Deck, draft: string): BoardState 
     error: '',
     pending: null,
     status: 'Choose a hidden card, then place it in a position.',
+    choices:
+      result.value.status === 'choosing' ? result.value.choices.map(({ cardId }) => cardId) : [],
+    settled: [],
   }
 }
 
@@ -96,6 +115,8 @@ export function restart(board: BoardState): BoardState {
     pending: null,
     error: '',
     status: 'Ask a question to begin.',
+    choices: [],
+    settled: [],
   }
 }
 

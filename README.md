@@ -134,10 +134,21 @@ Then open `http://localhost:44100/`.
 
 ## Environment
 
-See `.env.example`. Only `HOST`, `PORT`, and `NODE_ENV` are consumed, all with working
-defaults — no `.env` file is required for local startup. Invalid values (out-of-range port,
-unsupported mode) fail fast at startup with an actionable message; see `app/env.ts` /
-`app/env.test.ts`.
+See `.env.example`. Only `HOST`, `PORT`, `NODE_ENV`, and `READING_STATE_SECRET` are consumed.
+The first three have working defaults — no `.env` file is required for local startup. Invalid
+values (out-of-range port, unsupported mode) fail fast at startup with an actionable message;
+see `app/env.ts` / `app/env.test.ts`.
+
+`READING_STATE_SECRET` is the server key that seals the in-progress reading saved in the
+`sortes_reading` session cookie. Production (`bun run start`, the container) requires a random value of at
+least 32 characters and refuses to start without one:
+
+```sh
+READING_STATE_SECRET="$(openssl rand -base64 32)" bun run start
+```
+
+Development and test generate a temporary key per process, so saved readings stop opening
+after a restart. Rotating the secret discards every saved reading; visitors then start fresh.
 
 ## Testing
 
@@ -167,7 +178,7 @@ CI installs Chromium and its system dependencies before running `bun run verify`
 
 ```sh
 docker build -t sortes-app .
-docker run --rm -p 44100:44100 sortes-app
+docker run --rm -p 44100:44100 -e READING_STATE_SECRET="$(openssl rand -base64 32)" sortes-app
 ```
 
 Runs as a non-root user; only production dependencies and the source/assets actually needed
@@ -192,9 +203,11 @@ storage, or network imports — covering:
 
 The engine powers the browser flow through `Ask` / `Surprise me`, nine generic hidden choices,
 three configured spread positions, individual reveals, a completed verdict, and `Ask again`.
-Ordinary questions and reading state stay in memory for the current page session; reloading
-`/` starts again at idle. No authentication, cookies, or browser storage is used. Explicitly
-confirmed sharing is the exception described below. Run the engine tests with `bun run test`
+Once a reading starts, the server seals a copy into one `HttpOnly` session cookie
+(`sortes_reading`) after each step. Rendering `/` with that cookie restores the reading from the
+first paint, after a reload, back/forward, or in another tab of the same browser session; see
+`app/reading-state/`. `Ask again` clears it. Questions that were never started stay in memory
+only. No authentication, other cookies, or browser storage is used. Explicitly confirmed sharing is the exception described below. Run the engine tests with `bun run test`
 (colocated `*.test.ts` files alongside each module).
 
 ## Sharing

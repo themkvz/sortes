@@ -90,11 +90,13 @@ export type StartResult =
   | { readonly success: true; readonly value: ReadingState }
   | { readonly success: false; readonly error: 'invalid-question' }
 
+/** Restore passes the saved `knownChoices` card IDs, so it never shuffles or consumes `rng`. */
 export function start(
   deck: Deck,
   state: ReadingState,
   question: unknown,
   rng: () => number = Math.random,
+  knownChoices?: readonly string[],
 ): StartResult {
   if (state.status !== 'idle') {
     return { success: true, value: state }
@@ -111,11 +113,13 @@ export function start(
     finalQuestion = deck.prompts[promptIndex]
   }
 
-  const shuffled = shuffle(
-    deck.cards.map((card) => card.id),
-    rng,
-  )
-  const choices: Choice[] = shuffled
+  const cardIds =
+    knownChoices ??
+    shuffle(
+      deck.cards.map((card) => card.id),
+      rng,
+    )
+  const choices: Choice[] = cardIds
     .slice(0, CHOICE_COUNT)
     .map((cardId) => ({ cardId, picked: false }))
 
