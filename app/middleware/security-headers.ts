@@ -12,6 +12,9 @@ const CONTENT_SECURITY_POLICY = [
 const SECURITY_HEADERS = {
   'Content-Security-Policy': CONTENT_SECURITY_POLICY,
   'Referrer-Policy': 'strict-origin-when-cross-origin',
+  // Browsers ignore it over plain http, so local development is unaffected.
+  'Strict-Transport-Security': 'max-age=31536000', // 1 year
+
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
 }

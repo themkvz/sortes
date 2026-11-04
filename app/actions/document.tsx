@@ -4,6 +4,9 @@ import { ImportMap } from 'remix/component/server'
 
 import { displayFontPreload, fontStylesheets, scriptEntry } from '../assets.ts'
 
+const DESCRIPTION =
+  "Ask something you're overthinking. Draw three developer tarot cards and get a verdict."
+
 export interface DocumentProps {
   children?: RemixNode
   title?: string
@@ -22,6 +25,13 @@ export function Document(handle: Handle<DocumentProps>) {
           <meta name="color-scheme" content="dark" />
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
           <title>{title}</title>
+          <meta name="description" content={DESCRIPTION} />
+          {/* shortcut: no og:image; add one with a 1200×630 image and absolute URL */}
+          <meta property="og:type" content="website" />
+          <meta property="og:site_name" content="Pseudo Tarot" />
+          <meta property="og:title" content={title} />
+          <meta property="og:description" content={DESCRIPTION} />
+          <meta name="twitter:card" content="summary" />
           <link
             rel="preload"
             href={displayFontPreload}

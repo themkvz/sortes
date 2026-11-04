@@ -15,6 +15,18 @@ test('unknown routes return 404 with a link back home', async () => {
   expect(html).toMatch(/href="\/"/)
 })
 
+test('pages send HSTS and link-preview meta tags', async () => {
+  const router = createAppRouter()
+  const response = await router.fetch(new Request('http://localhost/'))
+  const html = await response.text()
+
+  expect(response.headers.get('Strict-Transport-Security')).toBe('max-age=31536000')
+  expect(html).toMatch(/<meta name="description" content="[^"]+"/)
+  expect(html).toContain('<meta property="og:title" content="Pseudo Tarot"')
+  expect(html).toMatch(/<meta property="og:description" content="[^"]+"/)
+  expect(html).toContain('<meta name="twitter:card" content="summary"')
+})
+
 describe('shared reading route', () => {
   test('renders a valid ordered reading with privacy headers', async () => {
     const router = createAppRouter()
