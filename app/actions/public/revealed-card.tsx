@@ -1,15 +1,8 @@
 import type { Handle } from 'remix/component'
-import { on, ref } from 'remix/component'
+import { css, on, ref } from 'remix/component'
 
 import type { CardInterpretation } from '../../domain/tarot/reading.ts'
 import { sheenStyle } from './magic.styles.ts'
-import {
-  backFaceStyle,
-  flipCardStyle,
-  frontFaceStyle,
-  frontFrameStyle,
-  frontImageStyle,
-} from './reading-board.styles.ts'
 import { Sparkles } from './sparkles.tsx'
 
 const seedOf = (text: string) => [...text].reduce((sum, char) => sum + char.charCodeAt(0), 0)
@@ -84,3 +77,45 @@ export function RevealedCard(handle: Handle<{ card: CardInterpretation; settled?
     )
   }
 }
+
+const frontFrameStyle = css({
+  position: 'relative',
+  borderRadius: 'var(--radius-card)',
+  width: '100%',
+  maxWidth: '100%',
+  aspectRatio: '82 / 116',
+  alignSelf: 'center',
+  perspective: '900px',
+})
+const flipCardStyle = css({
+  position: 'absolute',
+  inset: 0,
+  transformStyle: 'preserve-3d',
+})
+const frontFaceStyle = css({
+  position: 'absolute',
+  inset: 0,
+  overflow: 'hidden',
+  borderRadius: 'var(--radius-card)',
+  background: 'var(--color-card-back)',
+  backfaceVisibility: 'hidden',
+  pointerEvents: 'none',
+})
+const backFaceStyle = css({
+  position: 'absolute',
+  inset: 0,
+  borderRadius: 'var(--radius-card)',
+  backfaceVisibility: 'hidden',
+  pointerEvents: 'none',
+  background: 'var(--color-card-back) url(/cards/card-back.webp) center / contain no-repeat',
+  transform: 'rotateY(180deg)',
+})
+const frontImageStyle = css({
+  position: 'absolute',
+  inset: 0,
+  display: 'block',
+  width: '100%',
+  height: '100%',
+  objectFit: 'contain',
+  '&[hidden]': { display: 'none' },
+})
