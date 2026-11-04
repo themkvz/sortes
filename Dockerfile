@@ -18,4 +18,7 @@ COPY public ./public
 USER bun
 
 EXPOSE 44100
+# The slim image has no curl/wget, so Bun probes the server itself.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["bun", "-e", "fetch(`http://127.0.0.1:${process.env.PORT ?? 44100}/`).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 CMD ["bun", "server.ts"]

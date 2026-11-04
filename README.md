@@ -185,6 +185,16 @@ Runs as a non-root user; only production dependencies and the source/assets actu
 at runtime are included (no dev dependencies, tests, design sources, `.git`, or local env
 files — see `.dockerignore`).
 
+### Deploy on Coolify
+
+1. New resource → your Git repository → build pack **Dockerfile**.
+2. Ports exposed: `44100`. Set your domain; Coolify's proxy handles HTTPS.
+3. Environment: `READING_STATE_SECRET` = output of `openssl rand -base64 32` (required; the
+   container exits without it). `NODE_ENV=production` is already set in the image.
+4. Deploy. The image has a Docker `HEALTHCHECK` on `/`.
+
+Keep the secret stable between deploys: changing it drops readings saved in open browser tabs.
+
 ## Reading engine (tested domain layer)
 
 `app/domain/tarot/` contains a pure, framework-independent domain module — no Node-only, UI,
