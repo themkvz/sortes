@@ -7,7 +7,7 @@ Generated with the built-in ImageGen tool. The user approved all 16 fronts for i
 - Use case: `stylized-concept`.
 - Tool: built-in `image_gen.imagegen`, one call per card.
 - Reference: `public/cards/card-back.webp` (style and frame only; unchanged).
-- Arguments: `referenced_image_paths: ["/Users/themkvz/Code/sortes/public/cards/card-back.webp"]`, `transparent_background: false`.
+- Arguments: `referenced_image_paths: ["public/cards/card-back.webp"]`, `transparent_background: false`.
 - Sources: `design/card-fronts/<card-id>.png`.
 - Approval: on 2026-11-02 the user selected “Approve all and integrate” after reviewing the actual set, satisfying `openspec/changes/archive/2026-11-02-add-card-front-artwork/tasks.md` task 1.2.
 

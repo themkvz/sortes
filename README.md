@@ -1,256 +1,173 @@
 # Sortes — Pseudo Tarot
 
-A small pseudo-tarot reading experience built with Remix 3. Start with a question or use
-`Surprise me`, choose and place three hidden cards, reveal them one at a time, and read the
-completed verdict. Ask again starts a fresh in-memory reading. See [Roadmap](#roadmap) for
-work that remains outside this playable milestone.
+A tongue-in-cheek tarot reading for developers. Ask a question you're overthinking, place three
+hidden cards, reveal them one by one, and get a verdict. The deck is dramatic, not psychic.
 
-On desktop, drag an available hidden card with the primary mouse button into an empty spread
-position. A valid drop is final; an invalid drop leaves the reading unchanged. Escape cancels
-the drag and clears selection. Click, tap, and keyboard select-then-place controls remain
-available, and touch keeps normal scrolling.
+**Live:** <https://sortes.themkvz.com/>
 
-Each revealed card shows its own engraved illustration above its name, description, and
-position meaning. Images load independently of reveals and the verdict; failed images leave
-the text and controls usable. The [approved artwork and prompt record](design/card-fronts/README.md)
-cover all 16 fronts, with optimized local WebP files used by the app.
+Built as a small, complete product on [Remix 3](https://remix.run/) and Bun: server-rendered
+pages, one interactive island, a pure domain layer, and browser tests. Useful as a reference for
+anyone exploring Remix 3 beyond "hello world".
 
-Each manual reveal adds a short artwork-only flip. Card text, focus, and the verdict update
-immediately, independently of motion. Reduced motion shows the front instantly; restart
-cancels any remaining effects.
+![A completed reading: Legacy System, Infinite Refactor, and MVP with the verdict](docs/screenshot-result.png)
 
-After completion, Share asks for confirmation before creating or copying a link. The link
-includes the question and can be read by anyone who has it. Recipients see a read-only result,
-including when JavaScript is disabled.
+## Features
 
-The desktop deck uses nine compact 82×116 cards in a shallow stagger. Phones use a compact
-3×3 deck and keep the three spread cards side by side, with full-width, position-labeled
-interpretations below. Interpretation text is 16px with 24px line height; selection, placement,
-reveal availability, and focus have distinct cues. The question field has a visible boundary
-before focus. Reference adaptations are recorded in the archived `polish-reading-board` change's
-`design.md`.
+- **Three-card spread.** Context, Problem, and Advice positions, drawn from nine hidden choices
+  out of a 16-card Developer Tarot deck (The Legacy System, Friday Deploy, Green CI, ...).
+- **Ask or be surprised.** One primary button switches between `Ask` and `Surprise me`, which
+  picks a prompt for you.
+- **Drag, click, tap, or keyboard.** Drag a card into a slot with the mouse, or select and place
+  it with click, tap, or keys. Reduced motion is respected.
+- **Deterministic verdicts.** The same question and cards always give the same reading, in any
+  pick or reveal order.
+- **Shareable results.** A completed reading can be shared as a read-only link that works
+  without JavaScript. Sharing always asks for confirmation first.
+- **Survives a reload.** The reading in progress is restored from an encrypted session cookie.
+  No accounts, no database, no analytics.
+- **Original artwork.** 16 engraved card fronts and a shared card back, served as optimized
+  WebP files.
 
-## Stack and pinned versions
+![The empty board waiting for a question, with nine face-down cards](docs/screenshot-board.png)
 
-Core tooling was verified on 2026-10-30; Playwright was added on 2026-11-02:
+## Architecture
 
-| Tool       | Version  | Notes                                                            |
-| ---------- | -------- | ---------------------------------------------------------------- |
-| Remix      | `3.1.0`  | Stable release                                                   |
-| Bun        | `1.4.4`  | Runtime and package manager (`bun.lock`)                         |
-| Playwright | `1.64.1` | Browser automation for Remix browser and E2E tests               |
-| Biome      | `2.6.4`  | Linter and import organizer; Bun 1.4.4 has no `bun lint` command |
-| TypeScript | `7.0.2`  | Editor support and `tsc` type checks                             |
+`server.ts` validates the environment (`app/env.ts`) and passes each request to a Remix 3
+router. Routes (`app/routes.ts`) map to one controller (`app/actions/controller.tsx`). Pages are
+server-rendered with `remix/component` (JSX, not React).
 
-### Differences from the generated Remix starter
+| Area                       | What it does                                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/domain/tarot/`        | Pure TypeScript, no UI or Node imports. The reading is a discriminated union state machine (`idle → choosing → ready → revealing → complete`) with pure transitions. |
+| `app/actions/public/`      | The only browser island, `reading-board.tsx`. It holds board state and calls pure functions in `board-state.ts`. Mouse drag is one closure with one `AbortController`. |
+| `app/reading-state/`       | Seals the reading in progress into one `HttpOnly` cookie with AES-256-GCM.                                                                                          |
+| `app/middleware/`          | Security headers: CSP, HSTS, `nosniff`, referrer policy.                                                                                                            |
+| `app/assets.ts`            | Remix asset server with an allow list. Fingerprinted URLs and minified scripts in production.                                                                       |
 
-The app was scaffolded with the real `remix new` CLI in a scratch directory and only the
-minimum required files were copied in (see `design/mvp-tech-design.md` reconciliation for
-the fuller record). Notable deviations from the illustrative file outline in this change's
-`design.md`:
+Notable decisions:
 
-- **CSS follows the project’s chosen convention.** Components use co-located `css()`
-  styles, with shared design tokens defined as CSS custom properties on `<body>` in
-  `app/actions/document.tsx`. Remix also supports standalone CSS through its asset server.
-- **No `hmr.ts` / `hmr` script.** The starter ships an optional HMR proxy; it isn't part of
-  this project's command contract, so it was dropped as unused surface area. `dev` uses
-  `bun --watch` (full-process restart on change), which is sufficient for this milestone.
-- **Single primary action, not a two-button layout.** The pen.dev desktop mock
-  (`MVP / Initial Reading — Desktop`) shows a static "Ask the deck" button plus a separate
-  "Surprise me" quick action. `specs/application-shell/spec.md` (and `design.md`'s own
-  decision text: "action-label updates") requires **one** primary button whose label
-  toggles between `Surprise me` and `Ask` based on the question input. The written
-  interaction spec is authoritative for this dynamic behavior; the visual mock is a frozen
-  snapshot of one state. Token-level fidelity (color, type, spacing, card geometry) still
-  follows the mock.
+- **Mostly server-rendered.** Only the board is interactive. The home page, shared results, and
+  error pages work without JavaScript.
+- **Invalid moves are no-ops.** A transition that isn't allowed returns the same state object,
+  so the UI can't reach an impossible state.
+- **Deterministic interpretation.** An FNV-1a hash of the question and card pairs picks the
+  verdict template. A pinned golden vector guards it in tests.
+- **Share links carry data, not IDs.** `/r/:payload` is unpadded base64url JSON
+  (`{ v: 1, d, s, q, c }`), size-limited and validated before use. Nothing is stored on the
+  server. Shared pages send `no-store`, `no-referrer`, and `noindex`.
+- **No styling or icon dependencies.** Co-located `css()` mixins, design tokens as CSS custom
+  properties in `app/actions/document.tsx`, and inline lucide SVGs.
+- **Specs before code.** Behavior is specified with [OpenSpec](https://github.com/Fission-AI/OpenSpec)
+  in `openspec/specs/`; finished changes are archived in `openspec/changes/archive/`.
 
-## Design source (pen.dev)
+## Stack
 
-Inspected via the pen.dev MCP connection (unavailable during planning; available at apply
-time). Relevant top-level frames in `design/design.pen`:
+| Tool       | Version  | Role                                     |
+| ---------- | -------- | ---------------------------------------- |
+| Remix      | `3.1.0`  | Router, components, asset server, tests  |
+| Bun        | `1.4.4`  | Runtime and package manager (`bun.lock`) |
+| TypeScript | `7.0.2`  | Type checks (`tsc --noEmit`)             |
+| Biome      | `2.6.4`  | Lint and import order                    |
+| Playwright | `1.64.1` | Browser and E2E tests                    |
 
-- `Qq5pE` — **MVP / Initial Reading — Desktop** (1440×1024): the primary layout reference
-  for branding, ask area, three spread positions (Context/Problem/Advice), and the dormant
-  9-card deck.
-- `XrOVz` — **Mobile Ritual Foundation** (nested inside the Interaction Foundation frame):
-  a 390px-wide reference board showing the same board condensed — 3×3 compact deck grid,
-  spread positions kept side-by-side (not stacked). Used as the phone-width reference; the
-  implementation also verified 320px explicitly (narrower than the 390px reference).
-- Reusable components consulted for exact tokens: `Button / Primary`, `Input / Question`,
-  `Spread Slot / Empty`, `Card / Back`.
+## Getting started
 
-Design tokens (colors, fonts, spacing, radii, motion durations) were read from the file's
-variables and translated into CSS custom properties / literal values in
-`app/actions/document.tsx` and the component styles — see that file for the full token list.
-
-The shared face-down card uses a 38 KB WebP asset at `public/cards/card-back.webp`; its PNG
-source is retained at `design/card-back.png`. Decorative card backs and the brand mark
-are hidden from assistive technology.
-
-## Requirements
-
-- Bun `1.4.4`+
-- Docker (only for the container build/run steps)
-
-No separate Node.js installation is needed.
-
-## Setup
+Requirements: Bun `1.4.4`+. Docker only for the container steps. No separate Node.js install.
 
 ```sh
 bun install --frozen-lockfile
-bun run hooks:install   # installs Lefthook pre-commit/pre-push hooks
-cp .env.example .env    # optional — defaults work with no .env file
-bun run dev
+bun run hooks:install   # Lefthook pre-commit and pre-push hooks
+bun run dev             # http://localhost:44100/
 ```
 
-Then open `http://localhost:44100/`.
+No `.env` file is needed for local work; see [Environment](#environment).
 
 ## Commands
 
-| Script                  | Behavior                                                           |
-| ----------------------- | ------------------------------------------------------------------ |
-| `bun run dev`           | Development server (`bun --watch`)                                 |
-| `bun run start`         | Production server                                                  |
-| `bun run typecheck`     | TypeScript compiler (`tsc --noEmit`)                               |
-| `bun run test`          | Remix test runner                                                  |
-| `bun run test:server`   | Remix server tests                                                 |
-| `bun run test:browser`  | Remix browser and E2E tests using Playwright                       |
-| `bun run test:watch`    | Remix test runner in watch mode                                    |
-| `bun run format`        | Formats application code and supported config files with `bun fmt` |
-| `bun run format:check`  | Checks formatting without writing                                  |
-| `bun run lint`          | Read-only Biome lint and import organization, run under Bun        |
-| `bun run check`         | `format:check` + `lint`                                            |
-| `bun run check:fix`     | Formats files and applies safe Biome fixes                         |
-| `bun run verify`        | `check` + `typecheck` + Remix tests                                |
-| `bun run hooks:install` | Installs Lefthook git hooks                                        |
-| `bun run doctor`        | Runs Remix framework diagnostics through Bun                       |
+| Script                  | Behavior                                                   |
+| ----------------------- | ---------------------------------------------------------- |
+| `bun run dev`           | Development server (`bun --watch`, full restart on change) |
+| `bun run start`         | Production server                                          |
+| `bun run typecheck`     | `tsc --noEmit`                                             |
+| `bun run test`          | All tests                                                  |
+| `bun run test:server`   | Server tests                                               |
+| `bun run test:browser`  | Browser and E2E tests (Playwright)                         |
+| `bun run format`        | Format with `bun fmt`                                      |
+| `bun run lint`          | Biome lint and import order                                |
+| `bun run check`         | Format check + lint                                        |
+| `bun run check:fix`     | Apply formatting and safe Biome fixes                      |
+| `bun run verify`        | `check` + `typecheck` + all tests                          |
+| `bun run doctor`        | Remix environment diagnostics                              |
 
-## Git hooks
-
-- **pre-commit**: read-only Bun format check and `biome check` against staged files' current working-tree
-  content (not a byte-for-byte staged snapshot). Blocks the commit on any violation; never
-  auto-stages fixes — run `bun run check:fix` yourself and re-stage.
-- **pre-push**: full `bun run verify`.
-
-## Environment
-
-See `.env.example`. Only `HOST`, `PORT`, `NODE_ENV`, and `READING_STATE_SECRET` are consumed.
-The first three have working defaults — no `.env` file is required for local startup. Invalid
-values (out-of-range port, unsupported mode) fail fast at startup with an actionable message;
-see `app/env.ts` / `app/env.test.ts`.
-
-`READING_STATE_SECRET` is the server key that seals the in-progress reading saved in the
-`sortes_reading` session cookie. Production (`bun run start`, the container) requires a random value of at
-least 32 characters and refuses to start without one:
-
-```sh
-READING_STATE_SECRET="$(openssl rand -base64 32)" bun run start
-```
-
-Development and test generate a temporary key per process, so saved readings stop opening
-after a restart. Rotating the secret discards every saved reading; visitors then start fresh.
+Git hooks: **pre-commit** runs a read-only format and Biome check and never stages fixes;
+**pre-push** runs `bun run verify`. There is no hosted CI.
 
 ## Testing
 
-Test app-owned rules, failure paths, and real regressions at the smallest useful boundary.
-Keep domain and router checks beside their modules, use component tests for UI state, and
-reserve E2E tests for browser/server integration. Avoid duplicate checks and coverage targets;
-TDD is optional. The foundation's tests cover:
-
-- Unknown routes return a real 404 page with a link home
-- The Bun server adapter returns a generic 500 without exposing an unexpected route
-  error's stack trace; a child process also verifies active responses drain on SIGTERM
-- Environment validation accepts defaults and valid overrides, rejects invalid ones
-  (`app/env.test.ts`)
-
-The reading flow has repeatable Remix browser and E2E tests using Playwright, including mouse
-drag placement and cancellation. E2E tests use Remix's test server adapter and isolated browser
-pages. Install Chromium once, then run:
-
 ```sh
-bun x --bun --no-install playwright install chromium
-bun run test:browser
+bun x --bun --no-install playwright install chromium   # once
+bun run verify
 ```
 
-There is no hosted CI: the pre-push hook (`bun run hooks:install`) runs `bun run verify`.
+- `*.test.ts` runs on the server: domain rules, the share codec, cookie sealing, environment
+  validation, routing, 404/500 handling, and graceful shutdown on `SIGTERM`.
+- `*.test.browser.tsx` runs components in Chromium.
+- `*.test.e2e.ts` drives a real server with Playwright: the full reading flow, mouse drag and
+  cancel, keyboard flow at 320–1440 px, no-JavaScript sharing, and failed image loads.
 
-## Container
+Run one file or one test:
 
 ```sh
-docker build -t sortes-app .
-docker run --rm -p 44100:44100 -e READING_STATE_SECRET="$(openssl rand -base64 32)" sortes-app
+NODE_ENV=test bun x --bun --no-install remix test reading
+NODE_ENV=test bun x --bun --no-install remix test reading --only 'Suite > test name'
 ```
 
-Runs as a non-root user; only production dependencies and the source/assets actually needed
-at runtime are included (no dev dependencies, tests, design sources, `.git`, or local env
-files — see `.dockerignore`).
+## Environment
 
-### Deploy on Coolify
+See `.env.example`. Only these variables are read; invalid values stop the server at startup
+with a clear message.
 
-1. New resource → your Git repository → build pack **Dockerfile**.
-2. Ports exposed: `44100`. Set your domain; Coolify's proxy handles HTTPS.
-3. Environment: `READING_STATE_SECRET` = output of `openssl rand -base64 32` (required; the
-   container exits without it). `NODE_ENV=production` is already set in the image.
-4. Deploy. The image has a Docker `HEALTHCHECK` on `/`.
+| Variable               | Default       | Notes                                                                    |
+| ---------------------- | ------------- | ------------------------------------------------------------------------ |
+| `HOST`                 | `0.0.0.0`     |                                                                          |
+| `PORT`                 | `44100`       |                                                                          |
+| `NODE_ENV`             | `development` | `development`, `production`, or `test`                                   |
+| `READING_STATE_SECRET` | per process   | Required in production, at least 32 characters. Seals the session cookie. |
 
-Keep the secret stable between deploys: changing it drops readings saved in open browser tabs.
+Rotating `READING_STATE_SECRET` discards readings in progress; visitors start fresh.
 
-## Reading engine (tested domain layer)
+## Deployment
 
-`app/domain/tarot/` contains a pure, framework-independent domain module — no Node-only, UI,
-storage, or network imports — covering:
+The Docker image runs as a non-root user with production dependencies only and has a
+`HEALTHCHECK` on `/`.
 
-- `deck.ts` / `decks/developer.ts`: deck types and the authored 16-card Developer Tarot deck
-  as a typed literal (context/problem/advice positions, 5 surprise prompts, 2 verdict
-  templates). Its invariants are checked by `decks/developer.test.ts`, not at runtime.
-- `reading.ts`: question normalization (trim + NFC, at most 160 Unicode code points) and pure
-  transitions over the `idle → choosing → ready → revealing → complete` state union (`idle`,
-  `start`, `place`, `reveal`; an invalid move returns the same state). It also covers
-  individual reveal gating and deterministic interpretation: a completed reading always
-  produces the same position meanings and verdict, independent of pick/reveal order (verified
-  against a pinned golden vector). `Ask again` starts from a fresh `idle()` state.
-- `share.ts`: the V1 shared-reading codec described in [Sharing](#sharing).
+```sh
+docker build -t sortes .
+docker run --rm -p 44100:44100 -e READING_STATE_SECRET="$(openssl rand -base64 32)" sortes
+```
 
-The engine powers the browser flow through `Ask` / `Surprise me`, nine generic hidden choices,
-three configured spread positions, individual reveals, a completed verdict, and `Ask again`.
-Once a reading starts, the server seals a copy into one `HttpOnly` session cookie
-(`sortes_reading`) after each step. Rendering `/` with that cookie restores the reading from the
-first paint, after a reload, back/forward, or in another tab of the same browser session; see
-`app/reading-state/`. `Ask again` clears it. Questions that were never started stay in memory
-only. No authentication, other cookies, or browser storage is used. Explicitly confirmed sharing is the exception described below. Run the engine tests with `bun run test`
-(colocated `*.test.ts` files alongside each module).
+The live site runs on [Coolify](https://coolify.io/): Dockerfile build pack, port `44100`,
+`READING_STATE_SECRET` set once and kept stable between deploys. Coolify's proxy handles HTTPS.
 
-## Sharing
+## Privacy
 
-Only completed readings offer Share. Cancel or Escape creates no URL and writes nothing to
-the clipboard. Share anyway creates the link locally and attempts to copy it. If clipboard
-access is unavailable or denied, the approved URL remains selectable for manual copying.
-Ask again clears the link and requires fresh confirmation for a new reading.
+The app stores no readings and logs no questions or share URLs. The only cookie is the sealed
+reading in progress, cleared by `Ask again`. A shared link contains the question in readable
+form, so anyone with the link can read it, and it may stay in browser history.
 
-`GET /r/:payload` serves a read-only result with a link to a new empty board. V1 is unpadded
-base64url of UTF-8 JSON with exactly `{ v: 1, d: 'developer', s: 'three-card', q, c }`.
-`q` is a nonempty trimmed NFC question of at most 160 Unicode code points; `c` is three distinct
-known card IDs in Context, Problem, Advice order. Encoded payloads are limited to 2048
-characters and validated before interpretation. Invalid or unsupported payloads return a
-controlled HTML 400 page.
+## Design and artwork
 
-The URL carries public, editable data. Base64url provides no encryption or proof of origin;
-the question can remain in recipients' browser history or deployment logs. The app saves no
-reading records and adds no question/URL logging. Valid and controlled-invalid shared pages
-send no-store, no-referrer, and no-index headers.
+The visual design was made in [pen.dev](https://pen.dev/) (`design/design.pen`). The card
+artwork was generated with an AI image tool and reviewed by hand; prompts and settings are
+recorded in [`design/card-fronts/README.md`](design/card-fronts/README.md) and
+[`design/card-back-prompt.md`](design/card-back-prompt.md). Fonts are Newsreader, Funnel Sans,
+and IBM Plex Mono, self-hosted from Fontsource under the SIL Open Font License.
 
-The same V1 URL reproduces the current result while deck content and the interpretation
-algorithm remain unchanged. Historical deck snapshots and long-term compatibility across
-future content changes are outside this milestone.
+## Contributing
 
-## Roadmap
+This is a personal project, but issues and small pull requests are welcome. Please run
+`bun run verify` before opening a PR. New behavior starts as an OpenSpec change in `openspec/`.
 
-See `design/mvp-tech-design.md` and the `bootstrap-remix-foundation` change's `design.md` for
-the full milestone table. The playable reading flow, domain rules, desktop mouse dragging,
-illustrated card fronts, individual reveal flips, and confirmed reading sharing are
-implemented, with click, tap, and keyboard alternatives. Board composition, control contrast,
-and phone interpretation readability are also implemented. Completed changes are in
-`openspec/changes/archive/`; new features need a new OpenSpec proposal.
+## License
 
-Remaining release checks: broader browser and physical-device verification, and the
-production container check.
+[MIT](LICENSE) © Ihor Mukovoz
