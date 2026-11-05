@@ -362,7 +362,8 @@ describe('reading experience', () => {
       page.setDefaultTimeout(2_000)
       await page.setViewportSize({ width: 1440, height: 1400 })
       await start(page, 'desktop drag placement')
-      const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
+      // Placed cards leave the deck, so address choices by their stable index, not list position.
+      const choices = { nth: (index: number) => page.locator(`[data-choice="${index}"]`) }
       await choices.nth(0).click()
       const dropOrder = [2, 0, 1]
       const sourceIndexes = [4, 6, 8]
@@ -395,7 +396,7 @@ describe('reading experience', () => {
         if (step < 2) {
           expect(await choices.nth(sourceIndexes[step]).isDisabled()).toBe(true)
           expect(await choices.nth(0).getAttribute('aria-pressed')).toBe('false')
-        } else expect(await choices.count()).toBe(0)
+        } else expect(await page.locator('[data-choice]').count()).toBe(0)
         expect(await page.locator('[data-reveal]').count()).toBe(step + 1)
         if (step < 2) {
           await page.waitForFunction(
@@ -512,7 +513,8 @@ describe('reading experience', () => {
       const { page } = await setup(t)
       await page.setViewportSize({ width: 1440, height: 1400 })
       await start(page, 'desktop drag cancellation')
-      const choices = page.getByRole('button', { name: /^Choose hidden card \d+$/ })
+      // Placed cards leave the deck, so address choices by their stable index, not list position.
+      const choices = { nth: (index: number) => page.locator(`[data-choice="${index}"]`) }
       const jitter = await centerOf(page, '[data-choice="0"]')
       await page.mouse.move(jitter.x, jitter.y)
       await page.mouse.down()
