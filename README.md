@@ -172,7 +172,7 @@ bun x --bun --no-install playwright install chromium
 bun run test:browser
 ```
 
-CI installs Chromium and its system dependencies before running `bun run verify`.
+There is no hosted CI: the pre-push hook (`bun run hooks:install`) runs `bun run verify`.
 
 ## Container
 
@@ -252,5 +252,5 @@ implemented, with click, tap, and keyboard alternatives. Board composition, cont
 and phone interpretation readability are also implemented. Completed changes are in
 `openspec/changes/archive/`; new features need a new OpenSpec proposal.
 
-Remaining release checks: broader browser and physical-device verification, CI, and the
+Remaining release checks: broader browser and physical-device verification, and the
 production container check.
